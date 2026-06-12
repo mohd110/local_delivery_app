@@ -14,7 +14,7 @@ export default function BottomNav() {
   ]
 
   return (
-    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white border-t border-[#e5beb6]/30 z-40">
+    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white border-t border-gray-100 z-40 shadow-[0_-2px_16px_rgba(0,0,0,0.06)]">
       <div className="flex pb-safe">
         {tabs.map(({ href, icon: Icon, label }) => {
           const active = pathname === href || pathname.startsWith(href + '/')
@@ -22,12 +22,17 @@ export default function BottomNav() {
             <Link
               key={href}
               href={href}
-              className={`flex-1 flex flex-col items-center py-3 gap-0.5 transition-colors ${
-                active ? 'text-[#b51c00]' : 'text-[#586062]'
-              }`}
+              className="flex-1 flex flex-col items-center py-3 gap-0.5 transition-colors"
             >
-              <Icon className={`size-5 ${active ? 'fill-[#ffdad3]' : ''}`} strokeWidth={active ? 2.5 : 1.8} />
-              <span className={`text-[10px] font-semibold`}>{label}</span>
+              <div className={`w-10 h-6 flex items-center justify-center rounded-full transition-colors ${active ? 'bg-red-50' : ''}`}>
+                <Icon
+                  className={`size-5 transition-colors ${active ? 'text-[#c0392b]' : 'text-gray-400'}`}
+                  strokeWidth={active ? 2.5 : 1.8}
+                />
+              </div>
+              <span className={`text-[10px] font-semibold transition-colors ${active ? 'text-[#c0392b]' : 'text-gray-400'}`}>
+                {label}
+              </span>
             </Link>
           )
         })}

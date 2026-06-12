@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useCartStore } from '@/store/cart'
-import { ShoppingCart, LogOut, UtensilsCrossed, ChevronLeft, Search } from 'lucide-react'
+import { ChevronLeft, Search, ShoppingCart } from 'lucide-react'
 import Link from 'next/link'
 
 interface Props {
@@ -23,49 +23,63 @@ export default function NavBar({ role, title, showBack }: Props) {
     router.refresh()
   }
 
+  if (role === 'restaurant') {
+    return (
+      <nav className="bg-white sticky top-0 z-40 border-b border-gray-100">
+        <div className="phone-screen px-4 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {showBack && (
+              <button onClick={() => router.back()} className="p-1 -ml-1">
+                <ChevronLeft className="size-5 text-gray-800" />
+              </button>
+            )}
+            <span className="font-bold text-gray-900">{title ?? 'Dashboard'}</span>
+          </div>
+          <button onClick={handleLogout} className="text-xs font-semibold text-[#c0392b]">
+            Sign out
+          </button>
+        </div>
+      </nav>
+    )
+  }
+
+  // Customer nav — matches stitch design
   return (
-    <nav className="bg-white sticky top-0 z-40 border-b border-[#e5beb6]/20">
-      <div className="phone-screen px-4 h-14 flex items-center justify-between">
-        {/* Left */}
-        <div className="flex items-center gap-2">
-          {showBack ? (
-            <button onClick={() => router.back()} className="p-1 -ml-1">
-              <ChevronLeft className="size-5 text-[#191c1d]" />
-            </button>
-          ) : (
-            <Link
-              href={role === 'restaurant' ? '/restaurant/dashboard' : '/menu'}
-              className="flex items-center gap-2"
-            >
-              <UtensilsCrossed className="size-5 text-[#b51c00]" />
-              <span className="font-bold text-[#191c1d]">DirectDine</span>
-            </Link>
-          )}
-          {title && (
-            <span className="font-semibold text-[#b51c00] text-sm">{title}</span>
+    <nav className="bg-white sticky top-0 z-40 shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
+      <div className="phone-screen px-4 h-14 flex items-center gap-3">
+        {/* Back or logo */}
+        {showBack ? (
+          <button onClick={() => router.back()} className="p-1 -ml-1 flex-shrink-0">
+            <ChevronLeft className="size-6 text-gray-800" />
+          </button>
+        ) : null}
+
+        {/* Center text block */}
+        <div className="flex-1 min-w-0">
+          <h1 className="font-extrabold text-gray-900 text-base leading-tight truncate">
+            {title ?? 'Wali Baba Foods'}
+          </h1>
+          {!showBack && (
+            <p className="text-[11px] text-gray-400 font-medium flex items-center gap-1 mt-0.5">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
+              25–35 mins &bull; 0.6 km
+            </p>
           )}
         </div>
 
-        {/* Right */}
-        <div className="flex items-center gap-1">
-          {role === 'customer' && !showBack && (
-            <button className="p-2 text-[#586062]">
-              <Search className="size-5" />
-            </button>
-          )}
-          {role === 'customer' && (
-            <Link href="/cart" className="p-2 relative">
-              <ShoppingCart className="size-5 text-[#586062]" />
-              {itemCount > 0 && (
-                <span className="absolute top-1 right-1 bg-[#b51c00] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                  {itemCount > 9 ? '9+' : itemCount}
-                </span>
-              )}
-            </Link>
-          )}
-          <button onClick={handleLogout} className="p-2 text-[#586062]" title="Sign out">
-            <LogOut className="size-4.5" />
+        {/* Right icons */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
+            <Search className="size-5 text-gray-600" />
           </button>
+          <Link href="/cart" className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors relative">
+            <ShoppingCart className="size-5 text-gray-600" />
+            {itemCount > 0 && (
+              <span className="absolute top-0.5 right-0.5 bg-[#c0392b] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                {itemCount > 9 ? '9+' : itemCount}
+              </span>
+            )}
+          </Link>
         </div>
       </div>
     </nav>

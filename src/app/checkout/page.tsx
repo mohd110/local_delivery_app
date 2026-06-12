@@ -23,6 +23,16 @@ export default function CheckoutPage() {
   const [payment, setPayment] = useState<PaymentMethod>('cod')
   const [form, setForm] = useState({ name: '', phone: '', address: '', pincode: '' })
 
+  if (loading) {
+    return (
+      <div className="min-h-[100dvh] phone-screen flex flex-col items-center justify-center bg-[#f7f8fa] px-5 text-center">
+        <div className="w-12 h-12 border-4 border-[#c0392b] border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-base font-extrabold text-gray-900">Placing your order...</p>
+        <p className="text-xs text-gray-400 mt-1 font-semibold">Please do not close or refresh this page</p>
+      </div>
+    )
+  }
+
   if (items.length === 0) {
     return (
       <div className="min-h-[100dvh] phone-screen flex flex-col items-center justify-center bg-[#f8f9fa] px-5">
@@ -42,10 +52,34 @@ export default function CheckoutPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { toast.error('Please sign in'); router.push('/login'); return }
 
+    const uuidMap: Record<string, string> = {
+      'chicken-biryani': '9170d644-5efd-4147-a094-f0f9c50c55cc',
+      'veg-biryani': '069f7aa9-80c8-4e2e-913e-247b88a8d599',
+      'paneer-roll': '98d10ade-b694-4adc-bc96-632db4d19184',
+      'cold-coffee': '04b3082b-4413-4332-871f-d7c0b8367bcb',
+      'brownie': '5c8c14f2-5761-4ea1-9a34-69143e6d544e',
+    }
+
+    const deliveryAddressWithItems = {
+      ...form,
+      payment,
+      items: items.map((item) => ({
+        name: item.product.name,
+        quantity: item.quantity,
+        price: item.product.price,
+      })),
+    }
+
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .insert({ customer_id: user.id, status: 'pending', delivery_address: { ...form, payment }, total })
-      .select().single()
+      .insert({
+        customer_id: user.id,
+        status: 'pending',
+        delivery_address: deliveryAddressWithItems,
+        total,
+      })
+      .select()
+      .single()
 
     if (orderError || !order) {
       toast.error('Failed to place order. Please try again.')
@@ -53,14 +87,27 @@ export default function CheckoutPage() {
       return
     }
 
-    const { error: itemsError } = await supabase.from('order_items').insert(
-      items.map((item) => ({
-        order_id: order.id, product_id: item.product.id,
-        quantity: item.quantity, price_at_order: item.product.price,
-      }))
-    )
+    const orderItemsToInsert = items.map((item) => {
+      const baseId = item.product.id.split('-')[0]
+      const dbProductId = uuidMap[baseId] || null
 
-    if (itemsError) { toast.error('Failed to save order items.'); setLoading(false); return }
+      return {
+        order_id: order.id,
+        product_id: dbProductId,
+        quantity: item.quantity,
+        price_at_order: item.product.price,
+      }
+    })
+
+    const { error: itemsError } = await supabase
+      .from('order_items')
+      .insert(orderItemsToInsert)
+
+    if (itemsError) {
+      toast.error('Failed to save order items.')
+      setLoading(false)
+      return
+    }
 
     clearCart()
     router.push(`/order-success/${order.id}`)

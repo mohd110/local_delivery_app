@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import OrdersClient from '@/components/OrdersClient'
 import BottomNav from '@/components/BottomNav'
 import { Order } from '@/lib/types'
+import BackButton from '@/components/BackButton'
 
 export default async function OrdersPage() {
   const supabase = await createClient()
@@ -17,7 +18,8 @@ export default async function OrdersPage() {
 
   return (
     <div className="min-h-[100dvh] phone-screen flex flex-col bg-[#f8f9fa]">
-      <header className="bg-white sticky top-0 z-40 px-4 h-14 flex items-center border-b border-[#e5beb6]/20">
+      <header className="bg-white sticky top-0 z-40 px-4 h-14 flex items-center gap-3 border-b border-[#e5beb6]/20">
+        <BackButton />
         <h1 className="text-base font-bold text-[#b51c00]">My Orders</h1>
       </header>
       <main className="flex-1 px-4 pt-4 pb-24">

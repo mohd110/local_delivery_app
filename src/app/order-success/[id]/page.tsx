@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import { CheckCircle, MapPin, Clock, ShoppingBag, ArrowRight } from 'lucide-react'
+import { CheckCircle, MapPin, X, ChevronRight } from 'lucide-react'
 
 export default async function OrderSuccessPage({
   params,
@@ -27,93 +27,127 @@ export default async function OrderSuccessPage({
   const paymentLabel = addr?.payment === 'card' ? 'Credit/Debit Card' : 'Cash on Delivery'
 
   return (
-    <div className="min-h-[100dvh] phone-screen flex flex-col bg-[#f8f9fa]">
-      {/* Red hero */}
-      <div className="bg-[#b51c00] px-5 pt-12 pb-20 flex flex-col items-center text-center">
-        <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mb-4">
-          <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center">
-            <CheckCircle className="size-9 text-[#b51c00]" fill="rgba(181,28,0,0.12)" />
-          </div>
+    <div className="min-h-[100dvh] phone-screen flex flex-col bg-[#f7f8fa] text-gray-900 pb-safe">
+      {/* Header */}
+      <header className="bg-white sticky top-0 z-40 px-4 h-14 flex items-center justify-between border-b border-gray-100">
+        <div className="flex items-center gap-2 text-[#c0392b]">
+          <CheckCircle className="size-5" />
+          <span className="font-extrabold text-sm text-gray-800">Order Placed</span>
         </div>
-        <h1 className="text-xl font-bold text-white mb-1">Order Placed Successfully!</h1>
-        <p className="text-sm text-white/75">Your delicious food is being prepared</p>
-      </div>
+        <Link href="/menu" className="p-1 cursor-pointer text-gray-400 hover:text-gray-600">
+          <X className="size-5" />
+        </Link>
+      </header>
 
-      {/* White card overlapping hero */}
-      <div className="-mt-8 mx-4 bg-white rounded-2xl p-4 space-y-4" style={{ boxShadow: '0 8px 24px rgba(45,52,54,0.10)' }}>
-        {/* Order ID */}
-        <div className="flex items-center justify-between py-1">
-          <span className="text-xs text-[#586062]">Order ID</span>
-          <span className="text-sm font-bold text-[#191c1d] font-mono">{shortId}</span>
-        </div>
-        <div className="h-px bg-[#f3f4f5]" />
-
-        {/* Info grid */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-[#f8f9fa] rounded-xl p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <Clock className="size-4 text-[#b51c00]" />
-              <span className="text-[10px] font-semibold text-[#586062] uppercase tracking-wide">ETA</span>
-            </div>
-            <p className="text-sm font-bold text-[#191c1d]">30–45 min</p>
-          </div>
-          <div className="bg-[#f8f9fa] rounded-xl p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <ShoppingBag className="size-4 text-[#b51c00]" />
-              <span className="text-[10px] font-semibold text-[#586062] uppercase tracking-wide">Payment</span>
-            </div>
-            <p className="text-sm font-bold text-[#191c1d]">{paymentLabel}</p>
-          </div>
-        </div>
-
-        {/* Address */}
-        {addr?.address && (
-          <div className="flex items-start gap-3 bg-[#f8f9fa] rounded-xl p-3">
-            <MapPin className="size-4 text-[#b51c00] mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-[10px] font-semibold text-[#586062] uppercase tracking-wide mb-0.5">Delivery Address</p>
-              <p className="text-sm font-medium text-[#191c1d]">{addr.address}</p>
-            </div>
-          </div>
-        )}
-
-        <div className="h-px bg-[#f3f4f5]" />
-
-        {/* Items */}
-        <div>
-          <p className="text-xs font-semibold text-[#586062] uppercase tracking-wide mb-2">Items Ordered</p>
-          <div className="space-y-1.5">
-            {(order.order_items as { quantity: number; price_at_order: number; products?: { name: string } }[])?.map((item, i) => (
-              <div key={i} className="flex justify-between text-sm">
-                <span className="text-[#191c1d]">
-                  {item.products?.name}
-                  <span className="text-[#586062]"> × {item.quantity}</span>
-                </span>
-                <span className="font-semibold text-[#191c1d]">₹{item.price_at_order * item.quantity}</span>
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto pb-6">
+        {/* Animated Circular Ring Illustration */}
+        <div className="flex justify-center items-center py-10">
+          <div className="relative w-48 h-48 flex items-center justify-center">
+            {/* Outer circles */}
+            <div className="absolute inset-0 rounded-full border-4 border-red-50/60 scale-[0.85] animate-pulse" />
+            <div className="absolute inset-0 rounded-full border border-red-100/30 scale-[0.98]" />
+            
+            {/* Central Success Circle */}
+            <div className="relative w-28 h-28 rounded-full bg-white shadow-[0_8px_24px_rgba(192,57,43,0.08)] flex items-center justify-center z-10 border border-gray-50">
+              <div className="w-20 h-20 rounded-full bg-[#c0392b] flex items-center justify-center shadow-lg shadow-[#c0392b]/20">
+                <svg className="size-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
               </div>
-            ))}
-          </div>
-          <div className="flex justify-between font-bold text-sm mt-3 pt-3 border-t border-[#f3f4f5]">
-            <span className="text-[#191c1d]">Total Paid</span>
-            <span className="text-[#b51c00]">₹{order.total}</span>
+            </div>
+
+            {/* Floating Burger Card */}
+            <div className="absolute top-2 right-2 w-10 h-10 rounded-xl bg-white shadow-[0_4px_12px_rgba(0,0,0,0.06)] flex items-center justify-center border border-gray-100/50 z-20">
+              <span className="text-lg">🍔</span>
+            </div>
+
+            {/* Floating Cutlery Card */}
+            <div className="absolute left-1 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-white shadow-[0_4px_12px_rgba(0,0,0,0.06)] flex items-center justify-center border border-gray-100/50 z-20">
+              <span className="text-lg text-[#c0392b]">🍴</span>
+            </div>
+
+            {/* Floating Diamond/Gift Card */}
+            <div className="absolute bottom-2 right-6 w-10 h-10 rounded-xl bg-white shadow-[0_4px_12px_rgba(0,0,0,0.06)] flex items-center justify-center border border-gray-100/50 z-20">
+              <span className="text-lg">💎</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Buttons */}
-      <div className="mt-4 px-4 space-y-3">
-        <Link
-          href="/orders"
-          className="w-full h-14 bg-[#b51c00] text-white font-semibold rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform"
-        >
-          Track Order <ArrowRight className="size-5" />
-        </Link>
-        <Link
-          href="/menu"
-          className="w-full h-12 border-2 border-[#b51c00] text-[#b51c00] font-semibold rounded-xl flex items-center justify-center active:scale-95 transition-transform"
-        >
-          Back to Menu
-        </Link>
+        {/* Status text */}
+        <div className="text-center px-6 mb-8">
+          <h2 className="text-xl font-extrabold text-gray-900 leading-tight">Order Placed Successfully!</h2>
+          <p className="text-xs text-gray-400 mt-2.5 leading-relaxed px-5 font-medium">
+            Your delicious meal is now being prepared by our chefs and will be on its way shortly.
+          </p>
+        </div>
+
+        {/* Information summary card */}
+        <div className="bg-white rounded-3xl p-5 mx-4 space-y-4 shadow-[0_2px_12px_rgba(0,0,0,0.02)] border border-gray-50">
+          <div className="flex justify-between items-center text-xs">
+            <div>
+              <span className="text-gray-400 font-bold tracking-wider uppercase block">Order ID</span>
+              <span className="text-sm font-extrabold text-gray-900 font-mono mt-0.5 block">{shortId}</span>
+            </div>
+            <div className="text-right">
+              <span className="text-gray-400 font-bold tracking-wider uppercase block">Estimated Delivery</span>
+              <span className="text-sm font-extrabold text-[#c0392b] mt-0.5 block">25 – 35 mins</span>
+            </div>
+          </div>
+
+          <div className="h-px bg-gray-100" />
+
+          {/* Courier & Payment fields */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-[#f8f9fa] rounded-2xl p-3 flex flex-col gap-1 border border-gray-50/50">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+                🚚 Courier
+              </span>
+              <p className="text-xs font-extrabold text-gray-900">Alex Johnson</p>
+            </div>
+            <div className="bg-[#f8f9fa] rounded-2xl p-3 flex flex-col gap-1 border border-gray-50/50">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+                💳 Payment
+              </span>
+              <p className="text-xs font-extrabold text-gray-900 truncate">{paymentLabel}</p>
+            </div>
+          </div>
+
+          {/* Delivery location address */}
+          {addr?.address && (
+            <div className="flex items-start gap-3 bg-[#fff0ee] rounded-2xl p-3.5 border border-red-50/40">
+              <div className="w-8.5 h-8.5 rounded-xl bg-white flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm border border-red-100/20">
+                <MapPin className="size-4.5 text-[#c0392b]" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold text-[#c0392b] uppercase tracking-wider">Delivery Address</p>
+                <p className="text-xs font-bold text-gray-800 leading-normal mt-0.5">{addr.address}</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Navigation CTAs */}
+        <div className="mt-8 px-4 space-y-3">
+          <Link
+            href={`/orders/${order.id}`}
+            className="w-full h-13 bg-[#c0392b] hover:bg-[#a93226] text-white font-extrabold rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#c0392b]/20 active:scale-[0.98] transition-all cursor-pointer text-sm"
+          >
+            <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L16 4m0 13V4m0 0L9 7" />
+            </svg>
+            <span>Track Order</span>
+          </Link>
+          <Link
+            href="/menu"
+            className="w-full h-13 border-2 border-gray-200 hover:border-[#c0392b] text-gray-700 font-extrabold rounded-2xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer text-sm bg-white shadow-sm"
+          >
+            <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            <span>Back to Home</span>
+          </Link>
+        </div>
       </div>
     </div>
   )

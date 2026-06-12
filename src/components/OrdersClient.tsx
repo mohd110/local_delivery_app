@@ -132,9 +132,13 @@ export default function OrdersClient({ initialOrders, userId }: Props) {
             {/* Items */}
             <div className="px-4 pb-3 border-t border-[#f3f4f5] pt-3">
               <p className="text-xs text-[#586062] mb-1.5">
-                {(order.order_items as { quantity: number; products?: { name: string } }[])
-                  ?.map((item) => `${item.products?.name} ×${item.quantity}`)
-                  .join(', ')}
+                {((order.delivery_address as any)?.items)
+                  ? ((order.delivery_address as any).items as { name: string; quantity: number }[])
+                      .map((item) => `${item.name} ×${item.quantity}`)
+                      .join(', ')
+                  : (order.order_items as { quantity: number; products?: { name: string } }[])
+                      ?.map((item) => `${item.products?.name} ×${item.quantity}`)
+                      .join(', ')}
               </p>
               <div className="flex justify-between items-center">
                 <span className="text-[10px] text-[#586062]">Total Paid</span>

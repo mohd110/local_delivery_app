@@ -122,12 +122,21 @@ export default function DashboardClient({ initialOrders }: Props) {
 
             {/* Items */}
             <div className="px-4 pb-3 space-y-0.5">
-              {(order.order_items as any[])?.map((item, i) => (
-                <p key={i} className="text-sm text-gray-700">
-                  {item.products?.name}{' '}
-                  <span className="text-muted-foreground">× {item.quantity}</span>
-                </p>
-              ))}
+              {(address as any)?.items ? (
+                ((address as any).items as any[]).map((item, i) => (
+                  <p key={i} className="text-sm text-gray-700 font-semibold">
+                    {item.name}{' '}
+                    <span className="text-muted-foreground font-normal">× {item.quantity}</span>
+                  </p>
+                ))
+              ) : (
+                (order.order_items as any[])?.map((item, i) => (
+                  <p key={i} className="text-sm text-gray-700">
+                    {item.products?.name}{' '}
+                    <span className="text-muted-foreground">× {item.quantity}</span>
+                  </p>
+                ))
+              )}
             </div>
 
             {/* Customer info */}

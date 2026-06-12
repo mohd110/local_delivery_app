@@ -11,8 +11,8 @@ const plusJakarta = Plus_Jakarta_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'DirectDine',
-  description: 'Zero-commission direct ordering — from menu to kitchen.',
+  title: 'Wali Baba Foods',
+  description: 'Authentic flavors, prepared with Desi Ghee since 1999 — direct from our kitchen.',
 }
 
 export const viewport = {
@@ -36,7 +36,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-[#f8f9fa]">
         <Providers>
           {children}
-          <Toaster richColors position="top-center" />
+          <Toaster richColors position="bottom-center" duration={1500} />
         </Providers>
       </body>
     </html>
