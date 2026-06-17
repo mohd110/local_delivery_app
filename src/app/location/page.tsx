@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { MapPin, Navigation, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { useLocationStore } from '@/store/location'
 
 export default function LocationPage() {
   const [locating, setLocating] = useState(false)
@@ -10,6 +11,13 @@ export default function LocationPage() {
   const [address, setAddress] = useState('')
   const [error, setError] = useState('')
   const router = useRouter()
+  const setCoords = useLocationStore((s) => s.setCoords)
+
+  // Returning users who already granted location skip this screen entirely
+  useEffect(() => {
+    const saved = useLocationStore.getState().coords
+    if (saved) router.replace('/menu')
+  }, [router])
 
   function handleAllowLocation() {
     setLocating(true)
@@ -20,8 +28,11 @@ export default function LocationPage() {
       return
     }
     navigator.geolocation.getCurrentPosition(
-      () => {
-        // Location granted — proceed to menu
+      (position) => {
+        setCoords({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        })
         router.push('/menu')
       },
       () => {

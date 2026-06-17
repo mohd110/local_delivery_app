@@ -21,7 +21,11 @@ export default async function DashboardPage() {
 
   const { data: orders } = await supabase
     .from('orders')
-    .select('*, order_items(quantity, price_at_order, products(name)), profiles(full_name, phone)')
+    .select(
+      `*, order_items(quantity, price_at_order, products(name)),
+       customer:profiles!orders_customer_id_fkey(full_name, phone),
+       rider:profiles!orders_rider_id_fkey(full_name, phone)`
+    )
     .order('created_at', { ascending: false })
 
   return (

@@ -29,7 +29,7 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  const customerPaths = ['/menu', '/checkout', '/orders', '/order-success']
+  const customerPaths = ['/menu', '/checkout', '/orders', '/order-success', '/cart', '/profile']
   const restaurantPaths = ['/restaurant/dashboard']
 
   if (!user) {
@@ -54,7 +54,7 @@ export async function proxy(request: NextRequest) {
       .single()
 
     const url = request.nextUrl.clone()
-    url.pathname = profile?.role === 'restaurant' ? '/restaurant/dashboard' : '/menu'
+    url.pathname = profile?.role === 'restaurant' ? '/restaurant/dashboard' : '/location'
     return NextResponse.redirect(url)
   }
 

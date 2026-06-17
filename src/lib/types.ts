@@ -1,5 +1,6 @@
-export type UserRole = 'customer' | 'restaurant'
+export type UserRole = 'customer' | 'restaurant' | 'rider'
 export type OrderStatus = 'pending' | 'accepted' | 'preparing' | 'ready' | 'out_for_delivery' | 'delivered' | 'cancelled'
+export type PaymentStatus = 'pending_verification' | 'verified' | 'failed'
 
 export interface Profile {
   id: string
@@ -22,6 +23,7 @@ export interface DeliveryAddress {
   name: string
   phone: string
   address: string
+  landmark?: string
   pincode: string
 }
 
@@ -37,10 +39,17 @@ export interface OrderItem {
 export interface Order {
   id: string
   customer_id: string
+  restaurant_id: string | null
+  rider_id: string | null
   status: OrderStatus
+  payment_status: PaymentStatus
+  utr_number: string | null
+  order_type: 'delivery' | 'pickup'
   delivery_address: DeliveryAddress
+  delivery_fee: number
   total: number
   created_at: string
-  profiles?: Pick<Profile, 'full_name' | 'phone'>
+  customer?: Pick<Profile, 'full_name' | 'phone'>
+  rider?: Pick<Profile, 'full_name' | 'phone'>
   order_items?: OrderItem[]
 }

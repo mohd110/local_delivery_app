@@ -1,237 +1,408 @@
 'use client'
 
-import { useEffect, useState, use } from 'react'
+import { use, useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Order, OrderStatus } from '@/lib/types'
-import Link from 'next/link'
-import { ChevronLeft, Search, HelpCircle, Phone, MessageSquare, Star, Clock, Check, ChefHat, Bike, Compass } from 'lucide-react'
+import { type OrderStatus, type PaymentStatus } from '@/lib/types'
 import BottomNav from '@/components/BottomNav'
+import {
+  ChevronLeft,
+  HelpCircle,
+  Check,
+  ChefHat,
+  Bike,
+  Compass,
+  Phone,
+  MessageSquare,
+  Star,
+  Clock,
+} from 'lucide-react'
 
-export default function OrderTrackingPage({
+interface OrderItem {
+  id: string
+  quantity: number
+  price_at_order: number
+  products: { name: string } | null
+}
+
+interface OrderData {
+  id: string
+  status: OrderStatus
+  payment_status: PaymentStatus
+  utr_number: string | null
+  total: number
+  delivery_fee: number
+  delivery_address: {
+    name: string
+    phone: string
+    address: string
+    landmark?: string
+    pincode: string
+  }
+  created_at: string
+  rider_id: string | null
+  order_items: OrderItem[]
+}
+
+const STATUS_ORDER: OrderStatus[] = [
+  'pending',
+  'accepted',
+  'preparing',
+  'ready',
+  'out_for_delivery',
+  'delivered',
+]
+
+// Map DB status + payment_status → visual stepper step (0-based, 4 steps)
+function currentStep(order: OrderData): number {
+  if (order.status === 'pending' && order.payment_status === 'pending_verification') return 0
+  if (order.status === 'pending' || order.status === 'accepted') return 1
+  if (order.status === 'preparing') return 1
+  if (order.status === 'ready' || order.status === 'out_for_delivery') return 2
+  if (order.status === 'delivered') return 3
+  return 0
+}
+
+export default function OrderStatusPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
-  const router = useRouter()
   const { id } = use(params)
-  const [order, setOrder] = useState<Order | null>(null)
-  const [loading, setLoading] = useState(true)
+  const router = useRouter()
+  const [order, setOrder] = useState<OrderData | null>(null)
+  const [notFound, setNotFound] = useState(false)
+
+  const fetchOrder = useCallback(async () => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('orders')
+      .select(
+        `id, status, payment_status, utr_number, total, delivery_fee,
+         delivery_address, created_at, rider_id,
+         order_items(id, quantity, price_at_order, products(name))`
+      )
+      .eq('id', id)
+      .single()
+
+    if (error || !data) { setNotFound(true); return }
+    setOrder(data as unknown as OrderData)
+  }, [id])
 
   useEffect(() => {
+    fetchOrder()
     const supabase = createClient()
 
-    async function fetchOrder() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
-        return
-      }
-
-      const { data } = await supabase
-        .from('orders')
-        .select('*, order_items(quantity, price_at_order, products(name))')
-        .eq('id', id)
-        .eq('customer_id', user.id)
-        .single()
-
-      if (data) {
-        setOrder(data as Order)
-      }
-      setLoading(false)
-    }
-
-    fetchOrder()
-
-    // Subscribe to real-time order updates
     const channel = supabase
-      .channel(`order-tracking-${id}`)
+      .channel(`order-${id}`)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
-        (payload) => {
-          setOrder((prev) => (prev ? { ...prev, ...(payload.new as Partial<Order>) } : null))
-        }
+        () => fetchOrder()
       )
       .subscribe()
 
+    const timer = setInterval(fetchOrder, 30_000)
+
     return () => {
       supabase.removeChannel(channel)
+      clearInterval(timer)
     }
-  }, [id, router])
+  }, [id, fetchOrder])
 
-  if (loading) {
+  if (notFound) {
     return (
-      <div className="min-h-[100dvh] phone-screen flex flex-col items-center justify-center bg-[#f7f8fa]">
-        <div className="w-10 h-10 border-4 border-[#c0392b] border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs text-gray-400 mt-3 font-semibold">Loading tracking info...</p>
+      <div className="min-h-[100dvh] phone-screen flex flex-col items-center justify-center bg-[#f7f8fa] px-5 text-center">
+        <span className="text-5xl mb-3">📍</span>
+        <h2 className="text-sm font-extrabold text-gray-900 mb-1">Order Not Found</h2>
+        <p className="text-xs text-gray-400 mb-6 font-medium">
+          This order might not exist or belongs to another user.
+        </p>
+        <button
+          onClick={() => router.push('/menu')}
+          className="px-6 py-2.5 bg-[#b51c00] text-white font-bold rounded-xl"
+        >
+          Go to Menu
+        </button>
       </div>
     )
   }
 
   if (!order) {
     return (
-      <div className="min-h-[100dvh] phone-screen flex flex-col items-center justify-center bg-[#f7f8fa] px-5 text-center">
-        <span className="text-5xl mb-3">📍</span>
-        <h2 className="text-sm font-extrabold text-gray-900 mb-1">Order Not Found</h2>
-        <p className="text-xs text-gray-400 mb-6 font-medium">This order might not exist or belongs to another user.</p>
-        <button onClick={() => router.push('/orders')} className="px-6 py-2.5 bg-[#c0392b] text-white font-bold rounded-xl cursor-pointer">
-          Go to Orders
-        </button>
+      <div className="min-h-[100dvh] phone-screen flex flex-col items-center justify-center bg-[#f7f8fa]">
+        <div className="w-10 h-10 border-4 border-[#b51c00] border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs text-gray-400 mt-3 font-semibold">Loading tracking info...</p>
       </div>
     )
   }
 
-  // Calculate dynamic ETA (e.g. 30 minutes from created_at)
+  const isCancelled = order.status === 'cancelled'
+  const isDelivered = order.status === 'delivered'
+  const step = currentStep(order)
+  const statusIdx = STATUS_ORDER.indexOf(order.status)
+  const showRider = statusIdx >= 4 // out_for_delivery or delivered
+
   const createdDate = new Date(order.created_at)
   const etaDate = new Date(createdDate.getTime() + 30 * 60 * 1000)
-  const etaTimeStr = etaDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+  const etaStr = etaDate.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  })
+  const createdStr = createdDate.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  })
 
-  // Determine current active stepper status index
-  const status = order.status as OrderStatus
-  const currentStep = status === 'pending' ? 0
-    : status === 'accepted' || status === 'preparing' ? 1
-    : status === 'ready' || status === 'out_for_delivery' ? 2
-    : status === 'delivered' ? 3
-    : -1
+  const statusMessage =
+    isCancelled
+      ? 'This order was cancelled'
+      : isDelivered
+      ? 'Your order has arrived. Enjoy your meal!'
+      : order.status === 'out_for_delivery'
+      ? 'Rider is on the way to you!'
+      : order.status === 'ready'
+      ? 'Food is packed and ready for pickup'
+      : order.status === 'preparing' || order.status === 'accepted'
+      ? 'Your biryani is being prepared with love!'
+      : order.payment_status === 'pending_verification'
+      ? 'Verifying your UPI payment...'
+      : 'We have received your order'
 
-  // Extract items summary
-  const addressPayload = order.delivery_address as any
-  const itemsCount = addressPayload?.items
-    ? (addressPayload.items as any[]).reduce((sum, i) => sum + i.quantity, 0)
-    : order.order_items?.reduce((sum, i) => sum + i.quantity, 0) || 0
+  const steps = [
+    {
+      label: 'Order Received',
+      desc:
+        step > 0
+          ? `${createdStr} · We've confirmed your order`
+          : "We've confirmed your order",
+      icon: Check,
+    },
+    {
+      label: 'Preparing your food',
+      desc:
+        order.payment_status === 'pending_verification' && step <= 0
+          ? 'Waiting for payment verification'
+          : 'The chef is adding the final touches to your Biryani',
+      icon: ChefHat,
+    },
+    {
+      label: 'Out for Delivery',
+      desc: 'Rider will pick up soon',
+      icon: Bike,
+    },
+    {
+      label: 'Arrived at Home',
+      desc: `Expected by ${etaStr}`,
+      icon: Compass,
+    },
+  ]
+
+  const itemsCount = order.order_items.reduce((sum, i) => sum + i.quantity, 0)
 
   return (
-    <div className="min-h-[100dvh] phone-screen flex flex-col bg-[#f7f8fa] text-gray-900 pb-safe">
+    <div className="min-h-[100dvh] phone-screen flex flex-col bg-[#f7f8fa] text-gray-900">
       {/* Header */}
       <header className="bg-white sticky top-0 z-40 px-4 h-14 flex items-center justify-between border-b border-gray-100">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.back()} className="p-1 -ml-1 cursor-pointer">
-            <ChevronLeft className="size-6 text-[#c0392b]" />
+          <button onClick={() => router.back()} className="p-1 -ml-1">
+            <ChevronLeft className="size-6 text-[#b51c00]" />
           </button>
-          <h1 className="text-base font-extrabold text-[#c0392b]">Track Order</h1>
+          <h1 className="text-base font-extrabold text-[#b51c00]">Track Order</h1>
         </div>
-        <div className="flex items-center gap-1">
-          <button className="p-1.5 hover:bg-gray-100 rounded-full transition-colors cursor-pointer">
-            <Search className="size-5 text-gray-600" />
-          </button>
-          <button className="p-1.5 hover:bg-gray-100 rounded-full transition-colors cursor-pointer">
-            <HelpCircle className="size-5 text-gray-600" />
-          </button>
-        </div>
+        <button className="p-1.5 rounded-full hover:bg-gray-100 transition-colors">
+          <HelpCircle className="size-5 text-gray-500" />
+        </button>
       </header>
 
-      {/* Main content area */}
       <div className="flex-1 overflow-y-auto pb-28">
-        
-        {/* ── 3D Isometric Map Panel ── */}
-        <div className="relative w-full h-52 bg-gray-100 overflow-hidden shadow-inner flex-shrink-0">
-          <img
-            src="/delivery-map.png"
-            alt="Delivery Map"
-            className="w-full h-full object-cover"
+
+        {/* ── Map Placeholder ── */}
+        <div className="relative w-full h-52 bg-gray-800 overflow-hidden flex-shrink-0">
+          {/* Grid overlay to suggest isometric map */}
+          <div className="absolute inset-0"
+            style={{
+              background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%)',
+            }}
           />
-          {/* Distance overlay pill */}
+          {/* Road lines */}
+          <svg className="absolute inset-0 w-full h-full opacity-20" viewBox="0 0 400 208" preserveAspectRatio="xMidYMid slice">
+            <line x1="0" y1="104" x2="400" y2="104" stroke="white" strokeWidth="8" />
+            <line x1="200" y1="0" x2="200" y2="208" stroke="white" strokeWidth="8" />
+            <line x1="0" y1="52" x2="400" y2="52" stroke="white" strokeWidth="3" strokeDasharray="20 10" />
+            <line x1="0" y1="156" x2="400" y2="156" stroke="white" strokeWidth="3" strokeDasharray="20 10" />
+            <line x1="100" y1="0" x2="100" y2="208" stroke="white" strokeWidth="3" strokeDasharray="20 10" />
+            <line x1="300" y1="0" x2="300" y2="208" stroke="white" strokeWidth="3" strokeDasharray="20 10" />
+          </svg>
+          {/* Restaurant pin */}
+          <div className="absolute top-8 left-1/4 flex flex-col items-center">
+            <div className="w-8 h-8 rounded-full bg-[#b51c00] flex items-center justify-center shadow-lg shadow-[#b51c00]/40 text-white text-xs font-bold">
+              R
+            </div>
+            <div className="w-0.5 h-3 bg-[#b51c00]" />
+          </div>
+          {/* Delivery pin */}
+          <div className="absolute top-14 right-1/4 flex flex-col items-center">
+            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-lg text-[#b51c00] text-xs font-bold">
+              🏠
+            </div>
+            <div className="w-0.5 h-3 bg-white/60" />
+          </div>
+          {/* Route dotted line */}
+          <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 208" preserveAspectRatio="xMidYMid slice">
+            <path
+              d="M 100 56 Q 200 104 300 80"
+              fill="none"
+              stroke="#b51c00"
+              strokeWidth="3"
+              strokeDasharray="8 5"
+              opacity="0.8"
+            />
+          </svg>
+          {/* Distance pill */}
           <div className="absolute bottom-4 left-4 bg-white/95 px-3 py-1.5 rounded-full shadow-md flex items-center gap-1 border border-gray-100/50">
-            <span className="text-[10px] font-extrabold text-gray-800 flex items-center gap-1">
-              📍 1.8 km away
-            </span>
+            <span className="text-[10px] font-extrabold text-gray-800">📍 1.8 km away</span>
+          </div>
+          {/* Coming soon overlay text */}
+          <div className="absolute bottom-4 right-4 bg-black/40 text-white/70 text-[9px] font-semibold px-2 py-1 rounded-full">
+            Live map coming soon
           </div>
         </div>
 
         <div className="px-4 py-4 space-y-4">
 
-          {/* ── Estimated Arrival Card ── */}
-          <div className="bg-white rounded-3xl p-5 text-center shadow-[0_2px_12px_rgba(0,0,0,0.02)] border border-gray-50/50">
-            <p className="text-[10px] font-extrabold tracking-wider text-gray-400 uppercase">Estimated Arrival</p>
-            <h2 className="text-3xl font-black text-[#c0392b] mt-1.5 tracking-tight">{etaTimeStr}</h2>
-            <p className="text-xs text-gray-500 font-bold mt-2">
-              {status === 'pending' && 'We are confirming your order...'}
-              {(status === 'accepted' || status === 'preparing') && 'Your meal is being prepared with love!'}
-              {(status === 'ready' || status === 'out_for_delivery') && 'Your order is on its way to you!'}
-              {status === 'delivered' && 'Your order has arrived. Enjoy your meal!'}
-              {status === 'cancelled' && 'This order was cancelled.'}
-            </p>
+          {/* ── ETA Card ── */}
+          <div
+            className="bg-white rounded-3xl p-5 text-center"
+            style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
+          >
+            {!isDelivered && !isCancelled && (
+              <>
+                <p className="text-[10px] font-extrabold tracking-wider text-gray-400 uppercase">
+                  Estimated Arrival
+                </p>
+                <h2 className="text-3xl font-black text-[#b51c00] mt-1.5 tracking-tight">{etaStr}</h2>
+              </>
+            )}
+            {isCancelled && (
+              <p className="text-sm font-bold text-red-500">❌ Order Cancelled</p>
+            )}
+            <p className="text-xs text-gray-500 font-bold mt-2">{statusMessage}</p>
+            {order.payment_status === 'pending_verification' && !isCancelled && (
+              <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-left">
+                <p className="text-[10px] font-bold text-amber-700 flex items-center gap-1">
+                  <Clock className="size-3" /> Verifying UPI payment
+                </p>
+                <p className="text-[10px] text-amber-600 mt-0.5 font-mono">
+                  UTR: {order.utr_number}
+                </p>
+              </div>
+            )}
           </div>
 
-          {/* ── Rider Information Card ── */}
-          {status !== 'cancelled' && (
-            <div className="bg-white rounded-3xl p-4 flex items-center justify-between shadow-[0_2px_12px_rgba(0,0,0,0.02)] border border-gray-50/50">
+          {/* ── Rider Card ── */}
+          {showRider ? (
+            <div
+              className="bg-white rounded-3xl p-4 flex items-center justify-between"
+              style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
+            >
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200/50">
+                <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80"
                     className="w-full h-full object-cover"
-                    alt="Rider avatar"
+                    alt="Rider"
                   />
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-gray-900">Arjun Sharma</h4>
                   <p className="text-[10px] text-gray-500 font-semibold flex items-center gap-1 mt-0.5">
                     <Star className="size-3 fill-amber-400 text-amber-400" />
-                    4.9 &bull; Valued Rider
+                    4.9 · Valued Rider
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button className="w-9 h-9 rounded-full bg-[#c0392b] text-white flex items-center justify-center shadow-md hover:bg-[#a93226] cursor-pointer">
-                  <Phone className="size-4 fill-white text-[#c0392b]" />
+                <button className="w-9 h-9 rounded-full bg-[#b51c00] text-white flex items-center justify-center shadow-md">
+                  <Phone className="size-4 fill-white text-white" />
                 </button>
-                <button className="w-9 h-9 rounded-full bg-white text-gray-500 border border-gray-200 flex items-center justify-center shadow-sm hover:bg-gray-50 cursor-pointer">
+                <button className="w-9 h-9 rounded-full bg-white text-gray-500 border border-gray-200 flex items-center justify-center shadow-sm">
                   <MessageSquare className="size-4" />
                 </button>
+              </div>
+            </div>
+          ) : (
+            // Placeholder rider card when rider not yet assigned
+            <div
+              className="bg-white rounded-3xl p-4 flex items-center gap-3"
+              style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
+            >
+              <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-xl">
+                🛵
+              </div>
+              <div>
+                <p className="text-xs font-bold text-gray-900">Rider will be assigned soon</p>
+                <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                  You&apos;ll see their details here once assigned
+                </p>
               </div>
             </div>
           )}
 
           {/* ── Delivery Status Stepper ── */}
-          <div className="bg-white rounded-3xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.02)] border border-gray-50/50">
+          <div
+            className="bg-white rounded-3xl p-5"
+            style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
+          >
             <h3 className="text-sm font-extrabold text-gray-900 mb-5 px-0.5">Delivery Status</h3>
-            
-            {status === 'cancelled' ? (
+
+            {isCancelled ? (
               <div className="py-4 text-center text-red-500 font-bold text-xs">
                 ❌ This order has been cancelled.
               </div>
             ) : (
               <div className="relative space-y-6 pl-8">
-                {[
-                  { label: 'Order Received', desc: 'We have confirmed your order and started preparing.' },
-                  { label: 'Preparing your food', desc: 'Our chefs are cooking your fresh Mughlai delicacies.' },
-                  { label: 'Out for Delivery', desc: 'Rider is on the way to pick up and deliver your meal.' },
-                  { label: 'Arrived at Home', desc: `Expected arrival at ${etaTimeStr}` },
-                ].map((step, i) => {
-                  const done = i <= currentStep
-                  
+                {steps.map((s, i) => {
+                  const done = i <= step
+                  const Icon = s.icon
                   return (
                     <div key={i} className="relative flex items-start">
-                      {/* Segment Connector Line */}
-                      {i < 3 && (
-                        <div className={`absolute left-[-21px] top-9 w-0.5 h-7 -z-10 ${
-                          i < currentStep ? 'bg-[#c0392b]' : 'bg-gray-100'
-                        }`} />
+                      {/* Connector line */}
+                      {i < steps.length - 1 && (
+                        <div
+                          className={`absolute left-[-21px] top-9 w-0.5 h-7 -z-10 ${
+                            i < step ? 'bg-[#b51c00]' : 'bg-gray-100'
+                          }`}
+                        />
                       )}
-                      
-                      {/* Step Icon */}
-                      <div className={`absolute -left-9.5 top-0 w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all ${
-                        done 
-                          ? 'bg-[#c0392b] border-[#c0392b] text-white shadow-md shadow-[#c0392b]/20 scale-100' 
-                          : 'bg-white border-gray-200 text-gray-300 scale-95'
-                      }`}>
-                        {i === 0 && <Check className="size-4.5" strokeWidth={done ? 3 : 2} />}
-                        {i === 1 && <ChefHat className="size-4.5" strokeWidth={2} />}
-                        {i === 2 && <Bike className="size-4.5" strokeWidth={2} />}
-                        {i === 3 && <Compass className="size-4.5" strokeWidth={2} />}
+                      {/* Step icon */}
+                      <div
+                        className={`absolute -left-[38px] top-0 w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all ${
+                          done
+                            ? 'bg-[#b51c00] border-[#b51c00] text-white shadow-md shadow-[#b51c00]/25'
+                            : 'bg-white border-gray-200 text-gray-300'
+                        }`}
+                      >
+                        <Icon className="size-4" strokeWidth={done ? 2.5 : 2} />
                       </div>
-                      
-                      {/* Step Details */}
+                      {/* Step text */}
                       <div className="pl-3.5 min-w-0">
-                        <h4 className={`text-xs font-bold transition-colors ${done ? 'text-gray-900' : 'text-gray-400'}`}>
-                          {step.label}
+                        <h4
+                          className={`text-xs font-bold transition-colors ${
+                            done ? 'text-gray-900' : 'text-gray-400'
+                          }`}
+                        >
+                          {s.label}
                         </h4>
-                        <p className={`text-[10px] leading-relaxed mt-0.5 transition-colors ${done ? 'text-gray-500' : 'text-gray-300'}`}>
-                          {i === 0 && done
-                            ? `${new Date(order.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })} &bull; We've confirmed your order`
-                            : step.desc}
+                        <p
+                          className={`text-[10px] leading-relaxed mt-0.5 transition-colors ${
+                            done ? 'text-gray-500' : 'text-gray-300'
+                          }`}
+                        >
+                          {s.desc}
                         </p>
                       </div>
                     </div>
@@ -241,25 +412,27 @@ export default function OrderTrackingPage({
             )}
           </div>
 
-          {/* ── Order Receipt Badge Card ── */}
+          {/* ── Order Receipt Badge ── */}
           <div className="bg-gray-100 rounded-3xl p-4 flex items-center justify-between border border-gray-200/40">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center shadow-sm text-lg flex-shrink-0">
                 📄
               </div>
               <div>
-                <h4 className="text-xs font-extrabold text-gray-900">Order #{id.slice(0, 8).toUpperCase()}</h4>
+                <h4 className="text-xs font-extrabold text-gray-900">
+                  Order #{id.slice(0, 8).toUpperCase()}
+                </h4>
                 <p className="text-[10px] text-gray-500 font-bold mt-0.5">
-                  {itemsCount} {itemsCount === 1 ? 'item' : 'items'} &bull; ₹{order.total}
+                  {itemsCount} {itemsCount === 1 ? 'item' : 'items'} · ₹{order.total}
                 </p>
               </div>
             </div>
-            <Link
-              href={`/order-success/${order.id}`}
-              className="text-xs font-extrabold text-[#c0392b] hover:underline cursor-pointer flex-shrink-0"
+            <button
+              onClick={() => router.push('/menu')}
+              className="text-xs font-extrabold text-[#b51c00] flex-shrink-0"
             >
-              View Details
-            </Link>
+              Order Again
+            </button>
           </div>
 
         </div>
