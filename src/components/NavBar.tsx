@@ -72,7 +72,7 @@ export default function NavBar({ role, title, showBack }: Props) {
           <button className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
             <Search className="size-5 text-gray-600" />
           </button>
-          <Link href="/cart" className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors relative">
+          <Link href="/checkout" className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors relative">
             <ShoppingCart className="size-5 text-gray-600" />
             {itemCount > 0 && (
               <span className="absolute top-0.5 right-0.5 bg-[#c0392b] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">

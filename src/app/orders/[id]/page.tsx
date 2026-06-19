@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { type OrderStatus, type PaymentStatus } from '@/lib/types'
 import BottomNav from '@/components/BottomNav'
+import LiveMap from '@/components/LiveMap'
 import {
   ChevronLeft,
   HelpCircle,
@@ -39,9 +40,12 @@ interface OrderData {
     landmark?: string
     pincode: string
   }
+  delivery_latitude: number | null
+  delivery_longitude: number | null
   created_at: string
   rider_id: string | null
   order_items: OrderItem[]
+  restaurants: { latitude: number | null; longitude: number | null } | null
 }
 
 const STATUS_ORDER: OrderStatus[] = [
@@ -79,7 +83,8 @@ export default function OrderStatusPage({
       .from('orders')
       .select(
         `id, status, payment_status, utr_number, total, delivery_fee,
-         delivery_address, created_at, rider_id,
+         delivery_address, delivery_latitude, delivery_longitude, created_at, rider_id,
+         restaurants(latitude, longitude),
          order_items(id, quantity, price_at_order, products(name))`
       )
       .eq('id', id)
@@ -142,6 +147,16 @@ export default function OrderStatusPage({
   const step = currentStep(order)
   const statusIdx = STATUS_ORDER.indexOf(order.status)
   const showRider = statusIdx >= 4 // out_for_delivery or delivered
+
+  const restaurantCoords =
+    order.restaurants?.latitude != null && order.restaurants?.longitude != null
+      ? { lat: order.restaurants.latitude, lng: order.restaurants.longitude }
+      : null
+  const customerCoords =
+    order.delivery_latitude != null && order.delivery_longitude != null
+      ? { lat: order.delivery_latitude, lng: order.delivery_longitude }
+      : null
+  const hasMapData = !isCancelled && (restaurantCoords || customerCoords)
 
   const createdDate = new Date(order.created_at)
   const etaDate = new Date(createdDate.getTime() + 30 * 60 * 1000)
@@ -219,57 +234,22 @@ export default function OrderStatusPage({
 
       <div className="flex-1 overflow-y-auto pb-28">
 
-        {/* ── Map Placeholder ── */}
-        <div className="relative w-full h-52 bg-gray-800 overflow-hidden flex-shrink-0">
-          {/* Grid overlay to suggest isometric map */}
-          <div className="absolute inset-0"
-            style={{
-              background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%)',
-            }}
-          />
-          {/* Road lines */}
-          <svg className="absolute inset-0 w-full h-full opacity-20" viewBox="0 0 400 208" preserveAspectRatio="xMidYMid slice">
-            <line x1="0" y1="104" x2="400" y2="104" stroke="white" strokeWidth="8" />
-            <line x1="200" y1="0" x2="200" y2="208" stroke="white" strokeWidth="8" />
-            <line x1="0" y1="52" x2="400" y2="52" stroke="white" strokeWidth="3" strokeDasharray="20 10" />
-            <line x1="0" y1="156" x2="400" y2="156" stroke="white" strokeWidth="3" strokeDasharray="20 10" />
-            <line x1="100" y1="0" x2="100" y2="208" stroke="white" strokeWidth="3" strokeDasharray="20 10" />
-            <line x1="300" y1="0" x2="300" y2="208" stroke="white" strokeWidth="3" strokeDasharray="20 10" />
-          </svg>
-          {/* Restaurant pin */}
-          <div className="absolute top-8 left-1/4 flex flex-col items-center">
-            <div className="w-8 h-8 rounded-full bg-[#b51c00] flex items-center justify-center shadow-lg shadow-[#b51c00]/40 text-white text-xs font-bold">
-              R
-            </div>
-            <div className="w-0.5 h-3 bg-[#b51c00]" />
-          </div>
-          {/* Delivery pin */}
-          <div className="absolute top-14 right-1/4 flex flex-col items-center">
-            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-lg text-[#b51c00] text-xs font-bold">
-              🏠
-            </div>
-            <div className="w-0.5 h-3 bg-white/60" />
-          </div>
-          {/* Route dotted line */}
-          <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 208" preserveAspectRatio="xMidYMid slice">
-            <path
-              d="M 100 56 Q 200 104 300 80"
-              fill="none"
-              stroke="#b51c00"
-              strokeWidth="3"
-              strokeDasharray="8 5"
-              opacity="0.8"
+        {/* ── Live Map ── */}
+        {hasMapData ? (
+          <div className="relative w-full h-52 overflow-hidden flex-shrink-0">
+            <LiveMap
+              orderId={order.id}
+              restaurantCoords={restaurantCoords}
+              customerCoords={customerCoords}
             />
-          </svg>
-          {/* Distance pill */}
-          <div className="absolute bottom-4 left-4 bg-white/95 px-3 py-1.5 rounded-full shadow-md flex items-center gap-1 border border-gray-100/50">
-            <span className="text-[10px] font-extrabold text-gray-800">📍 1.8 km away</span>
           </div>
-          {/* Coming soon overlay text */}
-          <div className="absolute bottom-4 right-4 bg-black/40 text-white/70 text-[9px] font-semibold px-2 py-1 rounded-full">
-            Live map coming soon
+        ) : (
+          <div className="w-full h-24 bg-gray-800 flex items-center justify-center flex-shrink-0">
+            <p className="text-white/50 text-xs font-semibold">
+              {isCancelled ? 'Order cancelled' : 'Location not available for this order'}
+            </p>
           </div>
-        </div>
+        )}
 
         <div className="px-4 py-4 space-y-4">
 

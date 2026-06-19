@@ -27,6 +27,19 @@ export interface DeliveryAddress {
   pincode: string
 }
 
+export interface Address {
+  id: string
+  customer_id: string
+  label: string
+  address: string
+  landmark: string | null
+  pincode: string
+  latitude: number | null
+  longitude: number | null
+  is_default: boolean
+  created_at: string
+}
+
 export interface OrderItem {
   id: string
   order_id: string

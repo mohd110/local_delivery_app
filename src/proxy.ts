@@ -54,7 +54,20 @@ export async function proxy(request: NextRequest) {
       .single()
 
     const url = request.nextUrl.clone()
-    url.pathname = profile?.role === 'restaurant' ? '/restaurant/dashboard' : '/location'
+
+    if (profile?.role === 'restaurant') {
+      url.pathname = '/restaurant/dashboard'
+    } else {
+      // First-time customers (no saved address yet) go through the location
+      // setup flow. Returning customers with a saved address skip straight
+      // to the menu — they pick/change address later from the checkout bar.
+      const { count } = await supabase
+        .from('addresses')
+        .select('id', { count: 'exact', head: true })
+        .eq('customer_id', user.id)
+
+      url.pathname = count && count > 0 ? '/menu' : '/location'
+    }
     return NextResponse.redirect(url)
   }
 
