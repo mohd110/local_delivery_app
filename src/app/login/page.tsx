@@ -39,12 +39,25 @@ export default function LoginPage() {
     const name = profile?.full_name || user.user_metadata?.full_name || 'Foodie'
     setUserName(name)
 
+    // Decide destination before showing the splash — customers with no saved
+    // address yet go through location setup; returning customers skip straight in.
+    let destination = '/menu'
+    if (profile?.role === 'restaurant') {
+      destination = '/restaurant/dashboard'
+    } else {
+      const { count } = await supabase
+        .from('addresses')
+        .select('id', { count: 'exact', head: true })
+        .eq('customer_id', user.id)
+      destination = count && count > 0 ? '/menu' : '/location'
+    }
+
     // Show splash screen transition
     setShowSplash(true)
     setLoading(false)
 
     setTimeout(() => {
-      router.push(profile?.role === 'restaurant' ? '/restaurant/dashboard' : '/menu')
+      router.push(destination)
       router.refresh()
     }, 2000)
   }

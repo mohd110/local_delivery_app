@@ -43,7 +43,7 @@ export default function CheckoutPage() {
         return
       }
 
-      const [{ data: address }, { data: restaurant }, { data: bestCoupon }] = await Promise.all([
+      const [{ data: address }, { data: restaurant }] = await Promise.all([
         supabase
           .from('addresses')
           .select('*')
@@ -51,17 +51,7 @@ export default function CheckoutPage() {
           .eq('is_default', true)
           .maybeSingle(),
         supabase.from('restaurants').select('id, delivery_fee, latitude, longitude').single(),
-        supabase
-          .from('coupons')
-          .select('code, discount_amount, min_order_value')
-          .eq('is_active', true)
-          .lte('min_order_value', subtotal)
-          .order('discount_amount', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
       ])
-
-      if (bestCoupon) setCoupon(bestCoupon)
 
       if (!address) {
         router.push('/location?from=checkout')
@@ -104,6 +94,26 @@ export default function CheckoutPage() {
 
     load()
   }, [router])
+
+  // Separate effect, keyed on subtotal — re-checks coupon eligibility once the
+  // persisted cart store finishes hydrating (subtotal starts at 0 on first
+  // render) and whenever quantities change afterwards.
+  useEffect(() => {
+    if (subtotal <= 0) {
+      setCoupon(null)
+      return
+    }
+    const supabase = createClient()
+    supabase
+      .from('coupons')
+      .select('code, discount_amount, min_order_value')
+      .eq('is_active', true)
+      .lte('min_order_value', subtotal)
+      .order('discount_amount', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => setCoupon(data ?? null))
+  }, [subtotal])
 
   if (loading) {
     return (
