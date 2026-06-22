@@ -4,7 +4,6 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useCartStore } from '@/store/cart'
 import { Plus, Minus, X, Heart, Star, Clock } from 'lucide-react'
-import { toast } from 'sonner'
 import NavBar from '@/components/NavBar'
 import BottomNav from '@/components/BottomNav'
 import CartBar from '@/components/CartBar'
@@ -44,7 +43,6 @@ function MenuItemCard({ item, onClick }: MenuItemCardProps) {
     e.preventDefault()
     e.stopPropagation()
     addItem({ id: item.id, name: item.name, price: item.price, description: item.description, photo_url: item.photo, is_available: true })
-    toast.success(`${item.name} added to cart!`)
   }
 
   return (
@@ -194,7 +192,6 @@ export default function MenuPage() {
       updateQuantity(cartItemId, quantity)
     }
 
-    toast.success(`${finalName} added to cart!`)
     setSelectedItem(null)
   }
 
