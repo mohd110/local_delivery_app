@@ -40,7 +40,8 @@ const MAP_STYLE: google.maps.MapTypeStyle[] = [
 
 export default function LiveMap({ orderId, restaurantCoords, customerCoords }: LiveMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
-  const riderMarkerRef = useRef<google.maps.Marker | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const riderMarkerRef = useRef<any>(null)
 
   useEffect(() => {
     let isMounted = true

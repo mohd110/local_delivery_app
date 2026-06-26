@@ -190,12 +190,13 @@ export default function OrderStatusPage({
 
   const steps = [
     {
-      label: 'Order Received',
+      label: 'Order Sent',
       desc:
         step > 0
           ? `${createdStr} · We've confirmed your order`
           : "We've confirmed your order",
       icon: Check,
+      color: '#b51c00',
     },
     {
       label: 'Preparing your food',
@@ -204,21 +205,25 @@ export default function OrderStatusPage({
           ? 'Waiting for payment verification'
           : 'The chef is adding the final touches to your Biryani',
       icon: ChefHat,
+      color: '#f59e0b',
     },
     {
       label: 'Ready for Pickup',
       desc: 'Food is packed and waiting for the rider',
       icon: Package,
+      color: '#16a34a',
     },
     {
       label: 'Out for Delivery',
       desc: 'Rider will pick up soon',
       icon: Bike,
+      color: '#2563eb',
     },
     {
       label: 'Arrived at Home',
       desc: `Expected by ${etaStr}`,
       icon: Compass,
+      color: '#15803d',
     },
   ]
 
@@ -360,18 +365,24 @@ export default function OrderStatusPage({
                       {/* Connector line */}
                       {i < steps.length - 1 && (
                         <div
-                          className={`absolute left-[-21px] top-9 w-0.5 h-7 -z-10 ${
-                            i < step ? 'bg-[#b51c00]' : 'bg-gray-100'
-                          }`}
+                          className="absolute left-[-21px] top-9 w-0.5 h-7 -z-10 transition-colors"
+                          style={{ backgroundColor: i < step ? steps[i + 1].color : '#f3f4f6' }}
                         />
                       )}
                       {/* Step icon */}
                       <div
                         className={`absolute -left-[38px] top-0 w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all ${
-                          done
-                            ? 'bg-[#b51c00] border-[#b51c00] text-white shadow-md shadow-[#b51c00]/25'
-                            : 'bg-white border-gray-200 text-gray-300'
+                          done ? 'text-white shadow-md' : 'bg-white border-gray-200 text-gray-300'
                         }`}
+                        style={
+                          done
+                            ? {
+                                backgroundColor: s.color,
+                                borderColor: s.color,
+                                boxShadow: `0 2px 8px ${s.color}40`,
+                              }
+                            : undefined
+                        }
                       >
                         <Icon className="size-4" strokeWidth={done ? 2.5 : 2} />
                       </div>
