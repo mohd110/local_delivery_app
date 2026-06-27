@@ -39,6 +39,7 @@ interface OrderItem {
 
 interface OrderData {
   id: string
+  order_number: string | null
   status: OrderStatus
   payment_status: PaymentStatus
   utr_number: string | null
@@ -97,7 +98,7 @@ export default function OrderStatusPage({
     const { data, error } = await supabase
       .from('orders')
       .select(
-        `id, status, payment_status, utr_number, total, delivery_fee,
+        `id, order_number, status, payment_status, utr_number, total, delivery_fee,
          delivery_address, delivery_latitude, delivery_longitude, created_at, rider_id,
          restaurants(latitude, longitude),
          order_items(id, quantity, price_at_order, products(name))`
@@ -105,6 +106,7 @@ export default function OrderStatusPage({
       .eq('id', id)
       .single()
 
+    if (error) console.error('fetchOrder failed:', error)
     if (error || !data) { setNotFound(true); return }
     setOrder(data as unknown as OrderData)
   }, [id])
@@ -532,7 +534,7 @@ export default function OrderStatusPage({
               </div>
               <div>
                 <h4 className="text-xs font-extrabold text-gray-900">
-                  Order #{id.slice(0, 8).toUpperCase()}
+                  Order {order.order_number ?? `#${id.slice(0, 8).toUpperCase()}`}
                 </h4>
                 <p className="text-[10px] text-gray-500 font-bold mt-0.5">
                   {itemsCount} {itemsCount === 1 ? 'item' : 'items'} · ₹{order.total}

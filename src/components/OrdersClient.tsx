@@ -103,11 +103,18 @@ export default function OrdersClient({ initialOrders, userId }: Props) {
       {orders.map((order) => {
         const isCancelled = order.status === 'cancelled'
         return (
-          <div key={order.id} className="bg-white rounded-xl overflow-hidden" style={{ boxShadow: '0 2px 8px rgba(45,52,54,0.06)' }}>
+          <Link
+            key={order.id}
+            href={`/orders/${order.id}`}
+            className="block bg-white rounded-xl overflow-hidden active:scale-[0.99] transition-transform"
+            style={{ boxShadow: '0 2px 8px rgba(45,52,54,0.06)' }}
+          >
             {/* Header */}
             <div className="px-4 pt-4 flex items-start justify-between">
               <div>
-                <p className="text-xs font-bold text-[#191c1d] font-mono">#{order.id.slice(0, 8).toUpperCase()}</p>
+                <p className="text-xs font-bold text-[#191c1d] font-mono">
+                  {order.order_number ?? `#${order.id.slice(0, 8).toUpperCase()}`}
+                </p>
                 <p className="text-[10px] text-[#586062] mt-0.5 flex items-center gap-1">
                   <Clock className="size-3" />
                   {new Date(order.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
@@ -145,7 +152,7 @@ export default function OrdersClient({ initialOrders, userId }: Props) {
                 <span className="font-bold text-[#b51c00] text-sm">₹{order.total}</span>
               </div>
             </div>
-          </div>
+          </Link>
         )
       })}
 

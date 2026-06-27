@@ -29,7 +29,7 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  const customerPaths = ['/menu', '/checkout', '/orders', '/order-success', '/cart', '/profile']
+  const customerPaths = ['/menu', '/checkout', '/orders', '/order-success', '/cart', '/profile', '/complaints']
   const restaurantPaths = ['/restaurant/dashboard']
 
   if (!user) {

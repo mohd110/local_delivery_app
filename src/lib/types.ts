@@ -72,6 +72,7 @@ export interface OrderItem {
 
 export interface Order {
   id: string
+  order_number: string | null
   customer_id: string
   restaurant_id: string | null
   rider_id: string | null

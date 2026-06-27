@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { MapPin, Search, ChevronRight, CreditCard, History, HelpCircle, LogOut, X, Phone, User as UserIcon, Mail } from 'lucide-react'
+import { MapPin, Search, ChevronRight, CreditCard, History, HelpCircle, LogOut, X, Phone, User as UserIcon, Mail, MessageSquareWarning } from 'lucide-react'
 import BottomNav from '@/components/BottomNav'
 import { toast } from 'sonner'
 
@@ -201,6 +201,7 @@ export default function ProfilePage() {
             { label: 'Saved Addresses', icon: MapPin, color: 'bg-red-50 text-[#c0392b] border-red-100/20', href: '/location' },
             { label: 'Payment Methods', icon: CreditCard, color: 'bg-blue-50 text-blue-600 border-blue-100/20', onClick: () => setActiveModal('payment') },
             { label: 'Order History', icon: History, color: 'bg-amber-50 text-amber-600 border-amber-100/20', href: '/orders' },
+            { label: 'My Complaints', icon: MessageSquareWarning, color: 'bg-orange-50 text-orange-600 border-orange-100/20', href: '/complaints' },
             { label: 'Help & Support', icon: HelpCircle, color: 'bg-cyan-50 text-cyan-600 border-cyan-100/20', onClick: () => setActiveModal('support') },
             { label: 'Logout', icon: LogOut, color: 'bg-red-50 text-red-600 border-red-100/20', onClick: handleLogout },
           ].map((opt, i) => {
