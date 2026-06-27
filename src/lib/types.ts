@@ -40,6 +40,27 @@ export interface Address {
   created_at: string
 }
 
+export type ComplaintCategory =
+  | 'food_quality'
+  | 'missing_items'
+  | 'wrong_items'
+  | 'late_delivery'
+  | 'payment_issue'
+  | 'rider_behavior'
+  | 'other'
+
+export type ComplaintStatus = 'open' | 'in_progress' | 'resolved'
+
+export interface Complaint {
+  id: string
+  order_id: string
+  customer_id: string
+  category: ComplaintCategory
+  description: string
+  status: ComplaintStatus
+  created_at: string
+}
+
 export interface OrderItem {
   id: string
   order_id: string

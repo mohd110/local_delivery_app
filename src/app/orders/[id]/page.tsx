@@ -3,7 +3,8 @@
 import { use, useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { type OrderStatus, type PaymentStatus } from '@/lib/types'
+import { type OrderStatus, type PaymentStatus, type Complaint } from '@/lib/types'
+import { toast } from 'sonner'
 import BottomNav from '@/components/BottomNav'
 import LiveMap from '@/components/LiveMap'
 import {
@@ -19,6 +20,15 @@ import {
   Star,
   Clock,
 } from 'lucide-react'
+
+const CANCEL_WINDOW_MS = 5 * 60 * 1000
+
+function formatCountdown(ms: number) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
 
 interface OrderItem {
   id: string
@@ -78,6 +88,9 @@ export default function OrderStatusPage({
   const router = useRouter()
   const [order, setOrder] = useState<OrderData | null>(null)
   const [notFound, setNotFound] = useState(false)
+  const [complaints, setComplaints] = useState<Complaint[]>([])
+  const [cancelling, setCancelling] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
 
   const fetchOrder = useCallback(async () => {
     const supabase = createClient()
@@ -96,8 +109,19 @@ export default function OrderStatusPage({
     setOrder(data as unknown as OrderData)
   }, [id])
 
+  const fetchComplaints = useCallback(async () => {
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('complaints')
+      .select('*')
+      .eq('order_id', id)
+      .order('created_at', { ascending: false })
+    setComplaints(data ?? [])
+  }, [id])
+
   useEffect(() => {
     fetchOrder()
+    fetchComplaints()
     const supabase = createClient()
 
     const channel = supabase
@@ -110,12 +134,33 @@ export default function OrderStatusPage({
       .subscribe()
 
     const timer = setInterval(fetchOrder, 30_000)
+    const clock = setInterval(() => setNow(Date.now()), 1000)
 
     return () => {
       supabase.removeChannel(channel)
       clearInterval(timer)
+      clearInterval(clock)
     }
-  }, [id, fetchOrder])
+  }, [id, fetchOrder, fetchComplaints])
+
+  async function handleCancel() {
+    if (!order) return
+    if (!confirm('Cancel this order? This cannot be undone.')) return
+    setCancelling(true)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: 'cancelled' })
+      .eq('id', order.id)
+
+    if (error) {
+      toast.error('Could not cancel — the 5-minute window may have just expired.')
+    } else {
+      toast.success('Order cancelled')
+      fetchOrder()
+    }
+    setCancelling(false)
+  }
 
   if (notFound) {
     return (
@@ -146,6 +191,9 @@ export default function OrderStatusPage({
 
   const isCancelled = order.status === 'cancelled'
   const isDelivered = order.status === 'delivered'
+  const msSinceCreated = now - new Date(order.created_at).getTime()
+  const canCancel = !isCancelled && !isDelivered && msSinceCreated < CANCEL_WINDOW_MS
+  const cancelRemainingMs = CANCEL_WINDOW_MS - msSinceCreated
   const step = currentStep(order)
   const statusIdx = STATUS_ORDER.indexOf(order.status)
   const showRider = statusIdx >= 4 // out_for_delivery or delivered
@@ -294,6 +342,28 @@ export default function OrderStatusPage({
             )}
           </div>
 
+          {/* ── Cancel Order (5-minute window) ── */}
+          {canCancel && (
+            <div
+              className="bg-white rounded-3xl p-4 flex items-center justify-between gap-3"
+              style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
+            >
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-gray-900">Need to cancel?</p>
+                <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                  You can cancel within {formatCountdown(cancelRemainingMs)} of placing this order
+                </p>
+              </div>
+              <button
+                onClick={handleCancel}
+                disabled={cancelling}
+                className="h-9 px-4 rounded-xl border-2 border-red-500 text-red-500 text-xs font-bold disabled:opacity-50 flex-shrink-0"
+              >
+                {cancelling ? 'Cancelling…' : 'Cancel Order'}
+              </button>
+            </div>
+          )}
+
           {/* ── Rider Card ── */}
           {showRider ? (
             <div
@@ -406,6 +476,50 @@ export default function OrderStatusPage({
                     </div>
                   )
                 })}
+              </div>
+            )}
+          </div>
+
+          {/* ── Report an Issue ── */}
+          <div
+            className="bg-white rounded-3xl p-4"
+            style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-gray-900">Need help with this order?</p>
+                <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                  Report a missing item, quality issue, or anything else
+                </p>
+              </div>
+              <button
+                onClick={() => router.push(`/orders/${id}/complaint`)}
+                className="h-9 px-4 rounded-xl bg-[#191c1d] text-white text-xs font-bold flex-shrink-0"
+              >
+                Report Issue
+              </button>
+            </div>
+
+            {complaints.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+                {complaints.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between">
+                    <span className="text-[10px] font-semibold text-gray-600 capitalize">
+                      {c.category.replace(/_/g, ' ')}
+                    </span>
+                    <span
+                      className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                        c.status === 'resolved'
+                          ? 'bg-green-100 text-green-700'
+                          : c.status === 'in_progress'
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {c.status === 'in_progress' ? 'In Progress' : c.status === 'resolved' ? 'Resolved' : 'Open'}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
