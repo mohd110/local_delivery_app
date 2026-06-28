@@ -132,20 +132,17 @@ function LocationContent() {
     // If coordinates are null, geocode the typed address using Google Maps Geocoding API
     if (lat === null || lng === null) {
       try {
-        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY
-        if (apiKey) {
-          const addressStr = `${form.address}${form.landmark ? ', ' + form.landmark : ''}, ${form.pincode}`
-          const response = await fetch(
-            `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addressStr)}&key=${apiKey}`
-          )
-          const data = await response.json()
-          if (data.status === 'OK' && data.results && data.results.length > 0) {
-            const loc = data.results[0].geometry.location
-            lat = loc.lat
-            lng = loc.lng
-          } else {
-            console.warn('Geocoding not successful: status =', data.status)
-          }
+        const addressStr = `${form.address}${form.landmark ? ', ' + form.landmark : ''}, ${form.pincode}`
+        const response = await fetch(
+          `/api/geocode?address=${encodeURIComponent(addressStr)}`
+        )
+        const data = await response.json()
+        if (data.status === 'OK' && data.results && data.results.length > 0) {
+          const loc = data.results[0].geometry.location
+          lat = loc.lat
+          lng = loc.lng
+        } else {
+          console.warn('Geocoding not successful: status =', data.status)
         }
       } catch (err) {
         console.error('Error during manual address geocoding:', err)
