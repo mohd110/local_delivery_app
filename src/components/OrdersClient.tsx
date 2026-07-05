@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Order, OrderStatus } from '@/lib/types'
 import Link from 'next/link'
-import { CheckCircle, ChefHat, Bike, Package, Clock, ArrowRight } from 'lucide-react'
+import { CheckCircle, ChefHat, Bike, Package, Clock, ArrowRight, ThumbsUp } from 'lucide-react'
 
 interface Props {
   initialOrders: Order[]
@@ -12,14 +12,25 @@ interface Props {
 }
 
 const STATUS_STEPS: { status: OrderStatus; label: string; icon: React.ElementType }[] = [
-  { status: 'pending', label: 'Order Received', icon: Package },
+  { status: 'pending', label: 'Received', icon: Package },
+  { status: 'accepted', label: 'Accepted', icon: ThumbsUp },
   { status: 'preparing', label: 'Preparing', icon: ChefHat },
-  { status: 'out_for_delivery', label: 'Out for Delivery', icon: Bike },
+  { status: 'out_for_delivery', label: 'On the Way', icon: Bike },
   { status: 'delivered', label: 'Arrived', icon: CheckCircle },
 ]
 
 function statusIndex(status: OrderStatus) {
-  return STATUS_STEPS.findIndex((s) => s.status === status)
+  // Map statuses to stepper positions
+  const map: Record<OrderStatus, number> = {
+    pending: 0,
+    accepted: 1,
+    preparing: 2,
+    ready: 2,           // "ready" sits visually at "Preparing" done
+    out_for_delivery: 3,
+    delivered: 4,
+    cancelled: -1,
+  }
+  return map[status] ?? 0
 }
 
 function OrderStepper({ status }: { status: OrderStatus }) {
@@ -63,22 +74,58 @@ function statusLabel(status: OrderStatus) {
   return map[status] ?? status
 }
 
+const ORDER_SELECT = '*, order_items(quantity, price_at_order, products(name))'
+
 export default function OrdersClient({ initialOrders, userId }: Props) {
   const [orders, setOrders] = useState<Order[]>(initialOrders)
 
   useEffect(() => {
     const supabase = createClient()
+
+    // Re-fetch a single order with full joins so order_items is always fresh
+    async function refetchOrder(id: string) {
+      const { data } = await supabase
+        .from('orders')
+        .select(ORDER_SELECT)
+        .eq('id', id)
+        .single()
+      if (data) {
+        setOrders((prev) =>
+          prev.map((o) => (o.id === id ? (data as Order) : o))
+        )
+      }
+    }
+
+    // Use a unique channel name per user to prevent subscription conflicts
     const channel = supabase
-      .channel('customer-orders')
+      .channel(`customer-orders-${userId}`)
       .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'orders',
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'orders',
         filter: `customer_id=eq.${userId}`,
       }, (payload) => {
-        setOrders((prev) =>
-          prev.map((o) => o.id === payload.new.id ? { ...o, ...(payload.new as Partial<Order>) } : o)
-        )
+        // Re-fetch full order instead of merging partial payload
+        refetchOrder(payload.new.id as string)
+      })
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'orders',
+        filter: `customer_id=eq.${userId}`,
+      }, async (payload) => {
+        // New order from another device — fetch and prepend
+        const { data } = await supabase
+          .from('orders')
+          .select(ORDER_SELECT)
+          .eq('id', payload.new.id as string)
+          .single()
+        if (data) {
+          setOrders((prev) => [data as Order, ...prev])
+        }
       })
       .subscribe()
+
     return () => { supabase.removeChannel(channel) }
   }, [userId])
 
@@ -123,16 +170,26 @@ export default function OrdersClient({ initialOrders, userId }: Props) {
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                 isCancelled ? 'bg-red-100 text-red-600' :
                 order.status === 'delivered' ? 'bg-green-100 text-green-700' :
+                order.status === 'accepted' ? 'bg-purple-100 text-purple-700' :
                 'bg-[#ffdad3] text-[#b51c00]'
               }`}>
                 {statusLabel(order.status as OrderStatus)}
               </span>
             </div>
 
-            {/* Stepper */}
+            {/* Stepper — only for active orders */}
             {!isCancelled && (
               <div className="px-4 pb-2">
                 <OrderStepper status={order.status as OrderStatus} />
+              </div>
+            )}
+
+            {/* Cancelled banner */}
+            {isCancelled && (
+              <div className="mx-4 mb-2 mt-2 bg-red-50 rounded-lg px-3 py-2">
+                <p className="text-[10px] text-red-500 font-semibold">
+                  ❌ This order was cancelled
+                </p>
               </div>
             )}
 

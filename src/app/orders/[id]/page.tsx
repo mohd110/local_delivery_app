@@ -19,6 +19,8 @@ import {
   MessageSquare,
   Star,
   Clock,
+  ThumbsUp,
+  AlertCircle,
 } from 'lucide-react'
 
 const CANCEL_WINDOW_MS = 5 * 60 * 1000
@@ -28,6 +30,48 @@ function formatCountdown(ms: number) {
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
   return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+type CancelReason =
+  | 'item_not_available'
+  | 'too_busy'
+  | 'customer_unreachable'
+  | 'payment_issue'
+  | 'customer_requested'
+  | 'other'
+  | null
+
+const CANCEL_REASON_LABELS: Record<NonNullable<CancelReason>, { label: string; desc: string; emoji: string }> = {
+  item_not_available: {
+    emoji: '🥡',
+    label: 'Item Not Available',
+    desc: 'One or more items you ordered were out of stock at the time.',
+  },
+  too_busy: {
+    emoji: '⏳',
+    label: 'Restaurant Too Busy',
+    desc: "We were at full capacity and couldn't take on new orders right now.",
+  },
+  customer_unreachable: {
+    emoji: '📵',
+    label: 'Could Not Reach You',
+    desc: 'We tried to contact you but were unable to reach you.',
+  },
+  payment_issue: {
+    emoji: '💳',
+    label: 'Payment Issue',
+    desc: 'There was a problem verifying your payment. Please try again.',
+  },
+  customer_requested: {
+    emoji: '👋',
+    label: 'Cancelled by You',
+    desc: 'You cancelled this order within the 5-minute window.',
+  },
+  other: {
+    emoji: '📋',
+    label: 'Other Reason',
+    desc: 'We were unable to fulfill your order. We apologise for the inconvenience.',
+  },
 }
 
 interface OrderItem {
@@ -45,6 +89,7 @@ interface OrderData {
   utr_number: string | null
   total: number
   delivery_fee: number
+  cancel_reason: CancelReason
   delivery_address: {
     name: string
     phone: string
@@ -60,6 +105,8 @@ interface OrderData {
   restaurants: { latitude: number | null; longitude: number | null } | null
 }
 
+// ── Stepper steps ────────────────────────────────────────────
+// 5 steps: Order Sent → Accepted → Preparing → Ready → Out for Delivery → Arrived
 const STATUS_ORDER: OrderStatus[] = [
   'pending',
   'accepted',
@@ -72,11 +119,12 @@ const STATUS_ORDER: OrderStatus[] = [
 // Map DB status + payment_status → visual stepper step (0-based, 5 steps)
 function currentStep(order: OrderData): number {
   if (order.status === 'pending' && order.payment_status === 'pending_verification') return 0
-  if (order.status === 'pending' || order.status === 'accepted') return 1
-  if (order.status === 'preparing') return 1
-  if (order.status === 'ready') return 2
-  if (order.status === 'out_for_delivery') return 3
-  if (order.status === 'delivered') return 4
+  if (order.status === 'pending') return 0
+  if (order.status === 'accepted') return 1   // ← Now its own step
+  if (order.status === 'preparing') return 2
+  if (order.status === 'ready') return 3
+  if (order.status === 'out_for_delivery') return 4
+  if (order.status === 'delivered') return 5
   return 0
 }
 
@@ -99,7 +147,8 @@ export default function OrderStatusPage({
       .from('orders')
       .select(
         `id, order_number, status, payment_status, utr_number, total, delivery_fee,
-         delivery_address, delivery_latitude, delivery_longitude, created_at, rider_id,
+         cancel_reason, delivery_address, delivery_latitude, delivery_longitude,
+         created_at, rider_id,
          restaurants(latitude, longitude),
          order_items(id, quantity, price_at_order, products(name))`
       )
@@ -152,7 +201,7 @@ export default function OrderStatusPage({
     const supabase = createClient()
     const { error } = await supabase
       .from('orders')
-      .update({ status: 'cancelled' })
+      .update({ status: 'cancelled', cancel_reason: 'customer_requested' })
       .eq('id', order.id)
 
     if (error) {
@@ -200,6 +249,16 @@ export default function OrderStatusPage({
   const statusIdx = STATUS_ORDER.indexOf(order.status)
   const showRider = statusIdx >= 4 // out_for_delivery or delivered
 
+  // Determine if this was a restaurant-initiated cancellation
+  const isRestaurantCancelled =
+    isCancelled &&
+    order.cancel_reason !== 'customer_requested' &&
+    order.cancel_reason !== null
+
+  const cancelReasonInfo = order.cancel_reason
+    ? CANCEL_REASON_LABELS[order.cancel_reason]
+    : null
+
   const restaurantCoords =
     order.restaurants?.latitude != null && order.restaurants?.longitude != null
       ? { lat: order.restaurants.latitude, lng: order.restaurants.longitude }
@@ -223,30 +282,41 @@ export default function OrderStatusPage({
     hour12: true,
   })
 
-  const statusMessage =
-    isCancelled
-      ? 'This order was cancelled'
-      : isDelivered
-      ? 'Your order has arrived. Enjoy your meal!'
-      : order.status === 'out_for_delivery'
-      ? 'Rider is on the way to you!'
-      : order.status === 'ready'
-      ? 'Food is packed and ready for pickup'
-      : order.status === 'preparing' || order.status === 'accepted'
-      ? 'Your biryani is being prepared with love!'
-      : order.payment_status === 'pending_verification'
-      ? 'Verifying your UPI payment...'
-      : 'We have received your order'
+  // ── Status message (top of ETA card) ─────────────────────
+  const statusMessage = isCancelled
+    ? isRestaurantCancelled
+      ? 'We are sorry, due to some issues we couldn\'t fulfill your order.'
+      : 'You cancelled this order.'
+    : isDelivered
+    ? 'Your order has arrived. Enjoy your meal!'
+    : order.status === 'out_for_delivery'
+    ? 'Rider is on the way to you!'
+    : order.status === 'ready'
+    ? 'Food is packed and ready for pickup'
+    : order.status === 'accepted'
+    ? 'Great news! Your order has been accepted 🎉'
+    : order.status === 'preparing'
+    ? 'Your biryani is being prepared with love!'
+    : order.payment_status === 'pending_verification'
+    ? 'Verifying your UPI payment...'
+    : 'We have received your order'
 
+  // ── Stepper steps (now 6 steps) ──────────────────────────
   const steps = [
     {
       label: 'Order Sent',
       desc:
         step > 0
-          ? `${createdStr} · We've confirmed your order`
-          : "We've confirmed your order",
+          ? `${createdStr} · We've received your order`
+          : "We've received your order",
       icon: Check,
       color: '#b51c00',
+    },
+    {
+      label: 'Order Accepted',
+      desc: 'Restaurant has confirmed and accepted your order',
+      icon: ThumbsUp,
+      color: '#7c3aed',
     },
     {
       label: 'Preparing your food',
@@ -344,6 +414,58 @@ export default function OrderStatusPage({
             )}
           </div>
 
+          {/* ── Cancel Reason Card (visible only when cancelled) ── */}
+          {isCancelled && cancelReasonInfo && (
+            <div
+              className={`rounded-3xl p-4 ${
+                isRestaurantCancelled
+                  ? 'bg-red-50 border border-red-100'
+                  : 'bg-gray-50 border border-gray-100'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 text-lg ${
+                  isRestaurantCancelled ? 'bg-red-100' : 'bg-gray-100'
+                }`}>
+                  {cancelReasonInfo.emoji}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className={`text-[10px] font-extrabold uppercase tracking-wider mb-0.5 ${
+                    isRestaurantCancelled ? 'text-red-500' : 'text-gray-400'
+                  }`}>
+                    Reason for Cancellation
+                  </p>
+                  <p className="text-xs font-bold text-gray-900">{cancelReasonInfo.label}</p>
+                  <p className="text-[11px] text-gray-500 font-medium mt-1 leading-relaxed">
+                    {cancelReasonInfo.desc}
+                  </p>
+                  {isRestaurantCancelled && (
+                    <p className="text-[10px] text-red-400 font-semibold mt-2">
+                      If you were charged, your refund will be processed within 3–5 business days.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Fallback: no cancel_reason stored yet (old orders) */}
+          {isCancelled && !cancelReasonInfo && isRestaurantCancelled && (
+            <div className="bg-red-50 border border-red-100 rounded-3xl p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <AlertCircle className="size-5 text-red-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-gray-900">Order could not be fulfilled</p>
+                  <p className="text-[11px] text-gray-500 font-medium mt-1 leading-relaxed">
+                    We apologise for any inconvenience. If you were charged, your refund will be processed within 3–5 business days.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ── Cancel Order (5-minute window) ── */}
           {canCancel && (
             <div
@@ -399,21 +521,23 @@ export default function OrderStatusPage({
               </div>
             </div>
           ) : (
-            // Placeholder rider card when rider not yet assigned
-            <div
-              className="bg-white rounded-3xl p-4 flex items-center gap-3"
-              style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
-            >
-              <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-xl">
-                🛵
+            !isCancelled && (
+              // Placeholder rider card when rider not yet assigned
+              <div
+                className="bg-white rounded-3xl p-4 flex items-center gap-3"
+                style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
+              >
+                <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-xl">
+                  🛵
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-gray-900">Rider will be assigned soon</p>
+                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                    You&apos;ll see their details here once assigned
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs font-bold text-gray-900">Rider will be assigned soon</p>
-                <p className="text-[10px] text-gray-400 font-medium mt-0.5">
-                  You&apos;ll see their details here once assigned
-                </p>
-              </div>
-            </div>
+            )
           )}
 
           {/* ── Delivery Status Stepper ── */}
@@ -424,8 +548,20 @@ export default function OrderStatusPage({
             <h3 className="text-sm font-extrabold text-gray-900 mb-5 px-0.5">Delivery Status</h3>
 
             {isCancelled ? (
-              <div className="py-4 text-center text-red-500 font-bold text-xs">
-                ❌ This order has been cancelled.
+              <div className="py-2 space-y-3">
+                <div className="flex items-center gap-3 text-red-500">
+                  <div className="w-9 h-9 rounded-full bg-red-50 border-2 border-red-400 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm">✕</span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-red-500">Order Cancelled</p>
+                    <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                      {isRestaurantCancelled
+                        ? 'The restaurant was unable to fulfil this order.'
+                        : 'You cancelled this order.'}
+                    </p>
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="relative space-y-6 pl-8">
