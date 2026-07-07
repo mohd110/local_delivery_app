@@ -13,7 +13,7 @@ CREATE POLICY "customers_accept_modification" ON public.orders
     AND unavailable_items IS NOT NULL
   )
   WITH CHECK (
-    status             = 'accepted'
+    status             = 'preparing'
     AND payment_status = 'verified'
     AND unavailable_items IS NULL
   );

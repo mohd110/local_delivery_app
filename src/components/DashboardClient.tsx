@@ -339,7 +339,7 @@ export default function DashboardClient({ initialOrders }: Props) {
     const supabase = createClient()
     const { error } = await supabase
       .from('orders')
-      .update({ payment_status: 'verified', status: 'accepted' })
+      .update({ payment_status: 'verified', status: 'preparing' })
       .eq('id', orderId)
     if (error) toast.error('Failed to verify payment')
     else setAcceptingOrderId(null)

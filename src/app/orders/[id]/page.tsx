@@ -406,7 +406,7 @@ export default function OrderStatusPage({
     const supabase = createClient()
     const { error } = await supabase
       .from('orders')
-      .update({ status: 'accepted', payment_status: 'verified', unavailable_items: null })
+      .update({ status: 'preparing', payment_status: 'verified', unavailable_items: null })
       .eq('id', order.id)
     if (error) toast.error('Could not accept — please try again.')
     else { toast.success('Order accepted!'); fetchOrder() }
