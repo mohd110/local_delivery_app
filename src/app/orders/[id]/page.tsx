@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useEffect, useState, useCallback } from 'react'
+import { use, useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { type OrderStatus, type PaymentStatus, type Complaint } from '@/lib/types'
@@ -105,8 +105,6 @@ interface OrderData {
   restaurants: { latitude: number | null; longitude: number | null } | null
 }
 
-// ── Stepper steps ────────────────────────────────────────────
-// 5 steps: Order Sent → Accepted → Preparing → Ready → Out for Delivery → Arrived
 const STATUS_ORDER: OrderStatus[] = [
   'pending',
   'accepted',
@@ -116,16 +114,211 @@ const STATUS_ORDER: OrderStatus[] = [
   'delivered',
 ]
 
-// Map DB status + payment_status → visual stepper step (0-based, 5 steps)
 function currentStep(order: OrderData): number {
   if (order.status === 'pending' && order.payment_status === 'pending_verification') return 0
   if (order.status === 'pending') return 0
-  if (order.status === 'accepted') return 1   // ← Now its own step
+  if (order.status === 'accepted') return 1
   if (order.status === 'preparing') return 2
   if (order.status === 'ready') return 3
   if (order.status === 'out_for_delivery') return 4
   if (order.status === 'delivered') return 5
   return 0
+}
+
+// ── Animated Stepper ─────────────────────────────────────────
+// • Initial render: instantly lit up to current step (no animation)
+// • When status advances via realtime: game-loading animation for NEW step only
+function AnimatedOrderStepper({ status, steps, currentStepIndex }: {
+  status: OrderStatus
+  steps: { label: string; desc: string; icon: React.ElementType; color: string }[]
+  currentStepIndex: number
+}) {
+  const numLines = steps.length - 1
+
+  // Instantly show all steps up to current on mount
+  const [lineProgress, setLineProgress] = useState<number[]>(() =>
+    Array(numLines).fill(0).map((_, i) => (i < currentStepIndex ? 100 : 0))
+  )
+  const [unlocked, setUnlocked] = useState<boolean[]>(() =>
+    steps.map((_, i) => i <= currentStepIndex)
+  )
+  const [popping, setPopping] = useState<boolean[]>(Array(steps.length).fill(false))
+
+  // Track previous step to detect realtime advances
+  const prevCurrentRef = useRef(currentStepIndex)
+
+  useEffect(() => {
+    const prevCurrent = prevCurrentRef.current
+    prevCurrentRef.current = currentStepIndex
+
+    // Same step = initial mount or no change — nothing to animate
+    if (prevCurrent === currentStepIndex) return
+
+    // Status moved forward — animate only the NEW line(s)
+    let dead = false
+
+    function animateLine(lineIdx: number) {
+      if (dead || lineIdx >= currentStepIndex) return
+      // Skip lines that were already done before this update
+      if (lineIdx < prevCurrent) { animateLine(lineIdx + 1); return }
+
+      let progress = lineIdx < prevCurrent ? 100 : 0
+
+      const tick = setInterval(() => {
+        if (dead) { clearInterval(tick); return }
+
+        // Smooth linear progression (e.g., 4% per frame) for single continuous movement
+        progress = Math.min(progress + 4, 100)
+
+        setLineProgress(prev => {
+          const next = [...prev]
+          next[lineIdx] = progress
+          return next
+        })
+
+        if (progress >= 100) {
+          clearInterval(tick)
+
+          const nextIdx = lineIdx + 1
+          setUnlocked(prev => { const n = [...prev]; n[nextIdx] = true; return n })
+          setPopping(prev => { const n = [...prev]; n[nextIdx] = true; return n })
+
+          setTimeout(() => {
+            if (dead) return
+            setPopping(prev => { const n = [...prev]; n[nextIdx] = false; return n })
+            setTimeout(() => animateLine(lineIdx + 1), 50)
+          }, 250)
+        }
+      }, 16)
+    }
+
+    animateLine(prevCurrent)
+    return () => { dead = true }
+  }, [currentStepIndex])
+
+  return (
+    <>
+      <style>{`
+        @keyframes stepPop {
+          0%   { transform: scale(0.45); opacity: 0.4; }
+          55%  { transform: scale(1.28); opacity: 1; }
+          75%  { transform: scale(0.92); }
+          90%  { transform: scale(1.06); }
+          100% { transform: scale(1); }
+        }
+      `}</style>
+
+      <div className="relative space-y-6 pl-8">
+        {steps.map((s, i) => {
+          const isUnlocked = unlocked[i]
+          const isPopping  = popping[i]
+          const isActive   = i === currentStepIndex && isUnlocked
+          const Icon = s.icon
+
+          return (
+            <div
+              key={i}
+              className="relative flex items-start"
+            >
+              {/* Connector line with progress fill */}
+              {i < steps.length - 1 && (
+                <div
+                  className="absolute left-[-20px] top-[32px] bottom-[-24px] w-0.5 bg-[#f3f4f6]"
+                  style={{ zIndex: 1 }}
+                >
+                  <div
+                    className="w-full"
+                    style={{
+                      height: `${lineProgress[i]}%`,
+                      backgroundColor: steps[i + 1].color,
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Step icon */}
+              <div
+                className={`absolute -left-[38px] top-0 w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${
+                  isUnlocked ? 'text-white' : 'bg-white border-gray-200 text-gray-300'
+                }`}
+                style={{
+                  backgroundColor: isUnlocked ? s.color : undefined,
+                  borderColor: isUnlocked ? s.color : undefined,
+                  boxShadow: isActive ? `0 2px 8px ${s.color}40` : undefined,
+                  zIndex: 2,
+                  animation: isPopping
+                    ? 'stepPop 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards'
+                    : undefined,
+                }}
+              >
+                <Icon className="size-4" strokeWidth={isUnlocked ? 2.5 : 2} />
+              </div>
+
+              {/* Step text */}
+              <div className="pl-3.5 min-w-0">
+                <h4
+                  className="text-xs font-bold transition-colors duration-300"
+                  style={{ color: isUnlocked ? 'inherit' : '#afafaf' }}
+                >
+                  {s.label}
+                </h4>
+                <p
+                  className="text-[10px] leading-relaxed mt-0.5 transition-colors duration-300"
+                  style={{ color: isUnlocked ? 'inherit' : '#d1d5db' }}
+                >
+                  {s.desc}
+                </p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
+
+
+// ── Skeleton loader ──────────────────────────────────────────
+function OrderSkeleton() {
+  return (
+    <div className="min-h-[100dvh] phone-screen flex flex-col bg-[#f7f8fa] text-gray-900 animate-pulse">
+      <header className="bg-white sticky top-0 z-40 px-4 h-14 flex items-center justify-between border-b border-gray-100">
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 bg-gray-200 rounded-full" />
+          <div className="w-24 h-4 bg-gray-200 rounded" />
+        </div>
+        <div className="w-7 h-7 bg-gray-200 rounded-full" />
+      </header>
+      <div className="w-full h-52 bg-gray-200 flex-shrink-0" />
+      <div className="px-4 py-4 space-y-4">
+        <div className="bg-white rounded-3xl p-5 space-y-2">
+          <div className="h-3 w-28 bg-gray-200 rounded mx-auto" />
+          <div className="h-8 w-20 bg-gray-200 rounded mx-auto" />
+          <div className="h-3 w-40 bg-gray-200 rounded mx-auto" />
+        </div>
+        <div className="bg-white rounded-3xl p-4 flex items-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-gray-200 flex-shrink-0" />
+          <div className="flex-1 space-y-1.5">
+            <div className="h-3 w-24 bg-gray-200 rounded" />
+            <div className="h-2.5 w-16 bg-gray-200 rounded" />
+          </div>
+        </div>
+        <div className="bg-white rounded-3xl p-5 space-y-5">
+          <div className="h-4 w-32 bg-gray-200 rounded" />
+          {[0,1,2,3,4,5].map(i => (
+            <div key={i} className="flex items-start gap-3 pl-8">
+              <div className="w-9 h-9 rounded-full bg-gray-200 flex-shrink-0 -ml-8" />
+              <div className="flex-1 space-y-1.5 pt-1">
+                <div className="h-3 w-28 bg-gray-200 rounded" />
+                <div className="h-2.5 w-40 bg-gray-200 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function OrderStatusPage({
@@ -182,15 +375,26 @@ export default function OrderStatusPage({
         { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
         () => fetchOrder()
       )
-      .subscribe()
+      .subscribe((status) => {
+        // If the channel drops and reconnects, re-fetch immediately
+        if (status === 'SUBSCRIBED') fetchOrder()
+      })
 
-    const timer = setInterval(fetchOrder, 30_000)
+    // Tight polling as a safety net (10s)
+    const timer = setInterval(fetchOrder, 10_000)
     const clock = setInterval(() => setNow(Date.now()), 1000)
+
+    // Re-fetch instantly when user returns to this tab
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') fetchOrder()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
 
     return () => {
       supabase.removeChannel(channel)
       clearInterval(timer)
       clearInterval(clock)
+      document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [id, fetchOrder, fetchComplaints])
 
@@ -231,14 +435,7 @@ export default function OrderStatusPage({
     )
   }
 
-  if (!order) {
-    return (
-      <div className="min-h-[100dvh] phone-screen flex flex-col items-center justify-center bg-[#f7f8fa]">
-        <div className="w-10 h-10 border-4 border-[#b51c00] border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs text-gray-400 mt-3 font-semibold">Loading tracking info...</p>
-      </div>
-    )
-  }
+  if (!order) return <OrderSkeleton />
 
   const isCancelled = order.status === 'cancelled'
   const isDelivered = order.status === 'delivered'
@@ -247,13 +444,11 @@ export default function OrderStatusPage({
   const cancelRemainingMs = CANCEL_WINDOW_MS - msSinceCreated
   const step = currentStep(order)
   const statusIdx = STATUS_ORDER.indexOf(order.status)
-  const showRider = statusIdx >= 4 // out_for_delivery or delivered
+  const showRider = statusIdx >= 4
 
-  // Determine if this was a restaurant-initiated cancellation
   const isRestaurantCancelled =
     isCancelled &&
-    order.cancel_reason !== 'customer_requested' &&
-    order.cancel_reason !== null
+    order.cancel_reason !== 'customer_requested'
 
   const cancelReasonInfo = order.cancel_reason
     ? CANCEL_REASON_LABELS[order.cancel_reason]
@@ -282,11 +477,12 @@ export default function OrderStatusPage({
     hour12: true,
   })
 
-  // ── Status message (top of ETA card) ─────────────────────
   const statusMessage = isCancelled
-    ? isRestaurantCancelled
-      ? 'We are sorry, due to some issues we couldn\'t fulfill your order.'
-      : 'You cancelled this order.'
+    ? order.cancel_reason === 'customer_requested'
+      ? 'You cancelled this order.'
+      : cancelReasonInfo
+      ? `Cancelled by Restaurant: ${cancelReasonInfo.label}`
+      : "We're sorry, we couldn't fulfill your order."
     : isDelivered
     ? 'Your order has arrived. Enjoy your meal!'
     : order.status === 'out_for_delivery'
@@ -301,7 +497,6 @@ export default function OrderStatusPage({
     ? 'Verifying your UPI payment...'
     : 'We have received your order'
 
-  // ── Stepper steps (now 6 steps) ──────────────────────────
   const steps = [
     {
       label: 'Order Sent',
@@ -414,7 +609,7 @@ export default function OrderStatusPage({
             )}
           </div>
 
-          {/* ── Cancel Reason Card (visible only when cancelled) ── */}
+          {/* ── Cancel Reason Card ── */}
           {isCancelled && cancelReasonInfo && (
             <div
               className={`rounded-3xl p-4 ${
@@ -449,7 +644,7 @@ export default function OrderStatusPage({
             </div>
           )}
 
-          {/* Fallback: no cancel_reason stored yet (old orders) */}
+          {/* Fallback: no cancel_reason */}
           {isCancelled && !cancelReasonInfo && isRestaurantCancelled && (
             <div className="bg-red-50 border border-red-100 rounded-3xl p-4">
               <div className="flex items-start gap-3">
@@ -522,7 +717,6 @@ export default function OrderStatusPage({
             </div>
           ) : (
             !isCancelled && (
-              // Placeholder rider card when rider not yet assigned
               <div
                 className="bg-white rounded-3xl p-4 flex items-center gap-3"
                 style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
@@ -554,67 +748,25 @@ export default function OrderStatusPage({
                     <span className="text-sm">✕</span>
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-red-500">Order Cancelled</p>
+                    <p className="text-xs font-bold text-red-500">
+                      {order.cancel_reason === 'customer_requested' ? 'Cancelled by You' : 'Cancelled by Restaurant'}
+                    </p>
                     <p className="text-[10px] text-gray-400 font-medium mt-0.5">
-                      {isRestaurantCancelled
-                        ? 'The restaurant was unable to fulfil this order.'
-                        : 'You cancelled this order.'}
+                      {order.cancel_reason === 'customer_requested'
+                        ? 'You cancelled this order.'
+                        : cancelReasonInfo
+                          ? `Reason: ${cancelReasonInfo.label}`
+                          : 'The restaurant was unable to fulfil this order.'}
                     </p>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="relative space-y-6 pl-8">
-                {steps.map((s, i) => {
-                  const done = i <= step
-                  const Icon = s.icon
-                  return (
-                    <div key={i} className="relative flex items-start">
-                      {/* Connector line */}
-                      {i < steps.length - 1 && (
-                        <div
-                          className="absolute left-[-21px] top-9 w-0.5 h-7 -z-10 transition-colors"
-                          style={{ backgroundColor: i < step ? steps[i + 1].color : '#f3f4f6' }}
-                        />
-                      )}
-                      {/* Step icon */}
-                      <div
-                        className={`absolute -left-[38px] top-0 w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all ${
-                          done ? 'text-white shadow-md' : 'bg-white border-gray-200 text-gray-300'
-                        }`}
-                        style={
-                          done
-                            ? {
-                                backgroundColor: s.color,
-                                borderColor: s.color,
-                                boxShadow: `0 2px 8px ${s.color}40`,
-                              }
-                            : undefined
-                        }
-                      >
-                        <Icon className="size-4" strokeWidth={done ? 2.5 : 2} />
-                      </div>
-                      {/* Step text */}
-                      <div className="pl-3.5 min-w-0">
-                        <h4
-                          className={`text-xs font-bold transition-colors ${
-                            done ? 'text-gray-900' : 'text-gray-400'
-                          }`}
-                        >
-                          {s.label}
-                        </h4>
-                        <p
-                          className={`text-[10px] leading-relaxed mt-0.5 transition-colors ${
-                            done ? 'text-gray-500' : 'text-gray-300'
-                          }`}
-                        >
-                          {s.desc}
-                        </p>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+              <AnimatedOrderStepper
+                status={order.status as OrderStatus}
+                steps={steps}
+                currentStepIndex={step}
+              />
             )}
           </div>
 
