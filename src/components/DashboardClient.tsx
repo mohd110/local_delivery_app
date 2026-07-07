@@ -291,6 +291,22 @@ function AcceptOrderModal({
   )
 }
 
+async function sendPush(customerId: string, title: string, body: string, url: string, tag?: string) {
+  await fetch('/api/push/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ customerId, title, body, url, tag }),
+  }).catch(() => {})
+}
+
+const STATUS_PUSH: Partial<Record<string, { title: string; body: string }>> = {
+  preparing:        { title: '👨‍🍳 Order Confirmed!',     body: 'Your order is being prepared.' },
+  ready:            { title: '📦 Order Ready!',           body: 'Your order is ready and waiting for pickup.' },
+  out_for_delivery: { title: '🛵 On the Way!',            body: 'Your rider has picked up your order.' },
+  delivered:        { title: '🎉 Delivered!',             body: 'Your order has been delivered. Enjoy!' },
+  cancelled:        { title: '❌ Order Cancelled',        body: 'Your order was cancelled by the restaurant.' },
+}
+
 interface Props {
   initialOrders: Order[]
 }
@@ -337,12 +353,19 @@ export default function DashboardClient({ initialOrders }: Props) {
   async function verifyAndAccept(orderId: string) {
     setUpdating(orderId)
     const supabase = createClient()
+    const order = orders.find((o) => o.id === orderId)
     const { error } = await supabase
       .from('orders')
       .update({ payment_status: 'verified', status: 'preparing' })
       .eq('id', orderId)
-    if (error) toast.error('Failed to verify payment')
-    else setAcceptingOrderId(null)
+    if (error) {
+      toast.error('Failed to verify payment')
+    } else {
+      setAcceptingOrderId(null)
+      if (order?.customer_id) {
+        sendPush(order.customer_id, '👨‍🍳 Order Confirmed!', 'Your order is being prepared.', `/orders/${orderId}`, 'order-update')
+      }
+    }
     setUpdating(null)
   }
 
@@ -353,11 +376,15 @@ export default function DashboardClient({ initialOrders }: Props) {
       .from('orders')
       .update({ unavailable_items: unavailableIds, modified_total: modifiedTotal })
       .eq('id', orderId)
+    const order = orders.find((o) => o.id === orderId)
     if (error) {
       toast.error('Failed to notify customer')
     } else {
       toast.success('Customer notified — waiting for their response')
       setAcceptingOrderId(null)
+      if (order?.customer_id) {
+        sendPush(order.customer_id, '⚠️ Order Update', 'Some items are unavailable. Tap to review your order.', `/orders/${orderId}`, 'order-modification')
+      }
     }
     setUpdating(null)
   }
@@ -365,14 +392,21 @@ export default function DashboardClient({ initialOrders }: Props) {
   async function advanceStatus(orderId: string, next: OrderStatus) {
     setUpdating(orderId)
     const supabase = createClient()
+    const order = orders.find((o) => o.id === orderId)
     const { error } = await supabase.from('orders').update({ status: next }).eq('id', orderId)
-    if (error) toast.error('Failed to update order status')
+    if (error) {
+      toast.error('Failed to update order status')
+    } else if (order?.customer_id) {
+      const push = STATUS_PUSH[next]
+      if (push) sendPush(order.customer_id, push.title, push.body, `/orders/${orderId}`, 'order-update')
+    }
     setUpdating(null)
   }
 
   async function cancelOrder(orderId: string, reason: CancelReason) {
     setUpdating(orderId)
     const supabase = createClient()
+    const order = orders.find((o) => o.id === orderId)
     const { error } = await supabase
       .from('orders')
       .update({ status: 'cancelled', cancellation_reason: reason })
@@ -382,6 +416,9 @@ export default function DashboardClient({ initialOrders }: Props) {
     } else {
       toast.success('Order cancelled')
       setCancellingOrderId(null)
+      if (order?.customer_id) {
+        sendPush(order.customer_id, '❌ Order Cancelled', 'Your order was cancelled by the restaurant.', `/orders/${orderId}`, 'order-update')
+      }
     }
     setUpdating(null)
   }

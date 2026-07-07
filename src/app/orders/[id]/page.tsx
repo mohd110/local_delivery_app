@@ -7,6 +7,7 @@ import { type OrderStatus, type PaymentStatus, type Complaint } from '@/lib/type
 import { toast } from 'sonner'
 import BottomNav from '@/components/BottomNav'
 import LiveMap from '@/components/LiveMap'
+import { usePushSubscription } from '@/hooks/usePushSubscription'
 import {
   ChevronLeft,
   HelpCircle,
@@ -330,6 +331,7 @@ export default function OrderStatusPage({
 }) {
   const { id } = use(params)
   const router = useRouter()
+  usePushSubscription()
   const [order, setOrder] = useState<OrderData | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [complaints, setComplaints] = useState<Complaint[]>([])
