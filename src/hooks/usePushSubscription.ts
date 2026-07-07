@@ -14,7 +14,10 @@ export function usePushSubscription() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
 
     async function subscribe() {
-      const reg = await navigator.serviceWorker.register('/sw.js')
+      // Register SW then wait for it to be fully active
+      navigator.serviceWorker.register('/sw.js')
+      const reg = await navigator.serviceWorker.ready
+
       const existing = await reg.pushManager.getSubscription()
       if (existing) return // already subscribed
 
