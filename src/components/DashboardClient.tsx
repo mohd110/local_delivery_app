@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Order, OrderStatus } from '@/lib/types'
+import { Order, OrderStatus, CancelReason } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import OrderStatusBadge from './OrderStatusBadge'
 import { toast } from 'sonner'
@@ -22,15 +22,10 @@ const statusBg: Record<OrderStatus, string> = {
   cancelled:        'border-l-red-400',
 }
 
-// ── Cancel reason options shown to the restaurant ────────────
-type CancelReason =
-  | 'item_not_available'
-  | 'too_busy'
-  | 'customer_unreachable'
-  | 'payment_issue'
-  | 'other'
 
-const CANCEL_REASONS: { value: CancelReason; label: string; desc: string; emoji: string }[] = [
+type RestaurantCancelReason = 'item_not_available' | 'too_busy' | 'customer_unreachable' | 'payment_issue' | 'other'
+
+const CANCEL_REASONS: { value: RestaurantCancelReason; label: string; desc: string; emoji: string }[] = [
   {
     value: 'item_not_available',
     emoji: '🥡',
@@ -63,12 +58,21 @@ const CANCEL_REASONS: { value: CancelReason; label: string; desc: string; emoji:
   },
 ]
 
-const CANCEL_REASON_LABELS: Record<CancelReason, string> = {
+
+const CANCEL_REASON_LABELS: Record<RestaurantCancelReason, string> = {
   item_not_available: '🥡 Item Not Available',
   too_busy: '⏳ Too Busy',
   customer_unreachable: '📵 Customer Unreachable',
   payment_issue: '💳 Payment Issue',
   other: '📋 Other',
+}
+
+
+// Who cancelled this order?
+function getCanceller(cancelReason: string | null | undefined): 'restaurant' | 'customer' | 'unknown' {
+  if (!cancelReason) return 'unknown'
+  if (cancelReason === 'customer_requested') return 'customer'
+  return 'restaurant'
 }
 
 // ── Cancel Reason Modal ───────────────────────────────────────
@@ -227,7 +231,7 @@ export default function DashboardClient({ initialOrders }: Props) {
     const supabase = createClient()
     const { error } = await supabase
       .from('orders')
-      .update({ status: 'cancelled', cancel_reason: reason })
+      .update({ status: 'cancelled', cancellation_reason: reason })
       .eq('id', orderId)
     if (error) {
       toast.error('Failed to cancel order')
@@ -264,8 +268,7 @@ export default function DashboardClient({ initialOrders }: Props) {
           const borderClass = statusBg[order.status] ?? 'border-l-gray-300'
           const isBusy = updating === order.id
           const canCancel = ['pending', 'accepted', 'preparing'].includes(order.status)
-          // Safely access cancel_reason (may not exist on old rows)
-          const cancelReason = (order as Order & { cancel_reason?: CancelReason }).cancel_reason
+          const cancelReason = (order as Order & { cancellation_reason?: CancelReason }).cancellation_reason
 
           return (
             <div key={order.id} className={`bg-white rounded-2xl shadow-sm border-l-4 ${borderClass} overflow-hidden`}>
@@ -336,16 +339,47 @@ export default function DashboardClient({ initialOrders }: Props) {
               )}
 
               {/* Cancel reason display (for cancelled orders) */}
-              {order.status === 'cancelled' && cancelReason && (
-                <div className="px-4 pb-3">
-                  <div className="bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-                    <p className="text-[11px] font-bold text-red-600">Cancellation Reason</p>
-                    <p className="text-xs font-semibold text-red-700 mt-0.5">
-                      {CANCEL_REASON_LABELS[cancelReason]}
-                    </p>
+              {order.status === 'cancelled' && (() => {
+                const fullCancelReason = (order as Order & { cancellation_reason?: string }).cancellation_reason
+                const canceller = getCanceller(fullCancelReason)
+                const isRestaurant = canceller === 'restaurant'
+                const isCustomer = canceller === 'customer'
+                return (
+                  <div className="px-4 pb-3 space-y-2">
+                    {/* Who cancelled banner */}
+                    <div className={`rounded-xl px-3 py-2 flex items-center gap-2 ${
+                      isRestaurant
+                        ? 'bg-orange-50 border border-orange-200'
+                        : isCustomer
+                        ? 'bg-gray-50 border border-gray-200'
+                        : 'bg-red-50 border border-red-100'
+                    }`}>
+                      <span className="text-base flex-shrink-0">
+                        {isRestaurant ? '🏪' : isCustomer ? '👤' : '❌'}
+                      </span>
+                      <div className="min-w-0">
+                        <p className={`text-[11px] font-extrabold uppercase tracking-wide ${
+                          isRestaurant ? 'text-orange-600' : isCustomer ? 'text-gray-500' : 'text-red-600'
+                        }`}>
+                          {isRestaurant ? 'Cancelled by Restaurant' : isCustomer ? 'Cancelled by Customer' : 'Order Cancelled'}
+                        </p>
+                        {cancelReason && cancelReason !== 'customer_requested' && (
+                          <p className={`text-xs font-semibold mt-0.5 ${
+                            isRestaurant ? 'text-orange-700' : 'text-gray-600'
+                          }`}>
+                            {CANCEL_REASON_LABELS[cancelReason as RestaurantCancelReason]}
+                          </p>
+                        )}
+                        {isCustomer && (
+                          <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                            Customer cancelled within the 5-minute window
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
 
               {/* Actions */}
               <div className="px-4 pb-4 space-y-2">
@@ -398,12 +432,22 @@ export default function DashboardClient({ initialOrders }: Props) {
                     <span className="text-sm font-semibold text-green-600">Delivered</span>
                   </div>
                 )}
-                {order.status === 'cancelled' && (
-                  <div className="h-11 flex items-center justify-center bg-red-50 rounded-xl gap-1.5">
-                    <XCircle className="size-4 text-red-500" />
-                    <span className="text-sm font-semibold text-red-500">Cancelled</span>
-                  </div>
-                )}
+                {order.status === 'cancelled' && (() => {
+                  const fullCancelReason = (order as Order & { cancellation_reason?: string }).cancellation_reason
+                  const canceller = getCanceller(fullCancelReason)
+                  return (
+                    <div className={`h-11 flex items-center justify-center rounded-xl gap-1.5 ${
+                      canceller === 'restaurant' ? 'bg-orange-50' : 'bg-red-50'
+                    }`}>
+                      <XCircle className={`size-4 ${canceller === 'restaurant' ? 'text-orange-500' : 'text-red-500'}`} />
+                      <span className={`text-sm font-semibold ${
+                        canceller === 'restaurant' ? 'text-orange-600' : 'text-red-500'
+                      }`}>
+                        {canceller === 'restaurant' ? 'Cancelled by Restaurant' : canceller === 'customer' ? 'Cancelled by Customer' : 'Cancelled'}
+                      </span>
+                    </div>
+                  )
+                })()}
 
                 {canCancel && (
                   <button

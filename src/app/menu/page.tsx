@@ -9,7 +9,7 @@ import BottomNav from '@/components/BottomNav'
 import CartBar from '@/components/CartBar'
 import { MENU, TOPPINGS_MAP, MenuItem } from '@/lib/menu'
 
-const CATEGORIES = ['Popular', 'Biryani', 'Gravy', 'Breads', 'Fry', 'Kebabs', 'Tandoor', 'Combos', 'Desserts']
+const CATEGORIES = ['Popular', 'Biryani', 'Fry', 'Gravy', 'Kebabs', 'Tandoor', 'Breads', 'Desserts']
 
 const SECTIONS = [
   { title: 'Popular Choice', filter: (i: MenuItem) => !!i.bestseller },

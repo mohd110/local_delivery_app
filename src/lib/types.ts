@@ -70,6 +70,15 @@ export interface OrderItem {
   products?: Pick<Product, 'name' | 'price'>
 }
 
+export type CancelReason =
+  | 'item_not_available'
+  | 'too_busy'
+  | 'customer_unreachable'
+  | 'payment_issue'
+  | 'customer_requested'
+  | 'other'
+  | null
+
 export interface Order {
   id: string
   order_number: string | null
@@ -79,6 +88,7 @@ export interface Order {
   status: OrderStatus
   payment_status: PaymentStatus
   utr_number: string | null
+  cancellation_reason: CancelReason
   order_type: 'delivery' | 'pickup'
   delivery_address: DeliveryAddress
   delivery_fee: number

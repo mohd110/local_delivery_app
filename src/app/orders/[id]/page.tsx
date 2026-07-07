@@ -89,7 +89,7 @@ interface OrderData {
   utr_number: string | null
   total: number
   delivery_fee: number
-  cancel_reason: CancelReason
+  cancellation_reason: CancelReason
   delivery_address: {
     name: string
     phone: string
@@ -340,7 +340,7 @@ export default function OrderStatusPage({
       .from('orders')
       .select(
         `id, order_number, status, payment_status, utr_number, total, delivery_fee,
-         cancel_reason, delivery_address, delivery_latitude, delivery_longitude,
+         cancellation_reason, delivery_address, delivery_latitude, delivery_longitude,
          created_at, rider_id,
          restaurants(latitude, longitude),
          order_items(id, quantity, price_at_order, products(name))`
@@ -405,7 +405,7 @@ export default function OrderStatusPage({
     const supabase = createClient()
     const { error } = await supabase
       .from('orders')
-      .update({ status: 'cancelled', cancel_reason: 'customer_requested' })
+      .update({ status: 'cancelled', cancellation_reason: 'customer_requested' })
       .eq('id', order.id)
 
     if (error) {
@@ -448,10 +448,14 @@ export default function OrderStatusPage({
 
   const isRestaurantCancelled =
     isCancelled &&
-    order.cancel_reason !== 'customer_requested'
+    order.cancellation_reason !== 'customer_requested'
 
-  const cancelReasonInfo = order.cancel_reason
-    ? CANCEL_REASON_LABELS[order.cancel_reason]
+  const cancelReasonInfo = order.cancellation_reason
+    ? (CANCEL_REASON_LABELS[order.cancellation_reason] ?? {
+        emoji: '📋',
+        label: order.cancellation_reason,
+        desc: '',
+      })
     : null
 
   const restaurantCoords =
@@ -478,11 +482,9 @@ export default function OrderStatusPage({
   })
 
   const statusMessage = isCancelled
-    ? order.cancel_reason === 'customer_requested'
+    ? order.cancellation_reason === 'customer_requested'
       ? 'You cancelled this order.'
-      : cancelReasonInfo
-      ? `Cancelled by Restaurant: ${cancelReasonInfo.label}`
-      : "We're sorry, we couldn't fulfill your order."
+      : 'This order was cancelled by the restaurant.'
     : isDelivered
     ? 'Your order has arrived. Enjoy your meal!'
     : order.status === 'out_for_delivery'
@@ -734,41 +736,20 @@ export default function OrderStatusPage({
             )
           )}
 
-          {/* ── Delivery Status Stepper ── */}
-          <div
-            className="bg-white rounded-3xl p-5"
-            style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
-          >
-            <h3 className="text-sm font-extrabold text-gray-900 mb-5 px-0.5">Delivery Status</h3>
-
-            {isCancelled ? (
-              <div className="py-2 space-y-3">
-                <div className="flex items-center gap-3 text-red-500">
-                  <div className="w-9 h-9 rounded-full bg-red-50 border-2 border-red-400 flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm">✕</span>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-red-500">
-                      {order.cancel_reason === 'customer_requested' ? 'Cancelled by You' : 'Cancelled by Restaurant'}
-                    </p>
-                    <p className="text-[10px] text-gray-400 font-medium mt-0.5">
-                      {order.cancel_reason === 'customer_requested'
-                        ? 'You cancelled this order.'
-                        : cancelReasonInfo
-                          ? `Reason: ${cancelReasonInfo.label}`
-                          : 'The restaurant was unable to fulfil this order.'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : (
+          {/* ── Delivery Status Stepper (active orders only) ── */}
+          {!isCancelled && (
+            <div
+              className="bg-white rounded-3xl p-5"
+              style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
+            >
+              <h3 className="text-sm font-extrabold text-gray-900 mb-5 px-0.5">Delivery Status</h3>
               <AnimatedOrderStepper
                 status={order.status as OrderStatus}
                 steps={steps}
                 currentStepIndex={step}
               />
-            )}
-          </div>
+            </div>
+          )}
 
           {/* ── Report an Issue ── */}
           <div
