@@ -359,9 +359,14 @@ export default function DashboardClient({ initialOrders }: Props) {
       .update({ payment_status: 'verified', status: 'preparing' })
       .eq('id', orderId)
     if (error) {
-      toast.error('Failed to verify payment')
+      console.error('verifyAndAccept error:', error)
+      toast.error(`Failed: ${error.message}`)
     } else {
       setAcceptingOrderId(null)
+      // Optimistically update local state in case Realtime is slow
+      setOrders((prev) =>
+        prev.map((o) => o.id === orderId ? { ...o, status: 'preparing', payment_status: 'verified' } : o)
+      )
       if (order?.customer_id) {
         sendPush(order.customer_id, '👨‍🍳 Order Confirmed!', 'Your order is being prepared.', `/orders/${orderId}`, 'order-update')
       }
@@ -395,10 +400,14 @@ export default function DashboardClient({ initialOrders }: Props) {
     const order = orders.find((o) => o.id === orderId)
     const { error } = await supabase.from('orders').update({ status: next }).eq('id', orderId)
     if (error) {
-      toast.error('Failed to update order status')
-    } else if (order?.customer_id) {
-      const push = STATUS_PUSH[next]
-      if (push) sendPush(order.customer_id, push.title, push.body, `/orders/${orderId}`, 'order-update')
+      console.error('advanceStatus error:', error)
+      toast.error(`Failed: ${error.message}`)
+    } else {
+      setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: next } : o))
+      if (order?.customer_id) {
+        const push = STATUS_PUSH[next]
+        if (push) sendPush(order.customer_id, push.title, push.body, `/orders/${orderId}`, 'order-update')
+      }
     }
     setUpdating(null)
   }
@@ -412,10 +421,14 @@ export default function DashboardClient({ initialOrders }: Props) {
       .update({ status: 'cancelled', cancellation_reason: reason })
       .eq('id', orderId)
     if (error) {
-      toast.error('Failed to cancel order')
+      console.error('cancelOrder error:', error)
+      toast.error(`Failed: ${error.message}`)
     } else {
       toast.success('Order cancelled')
       setCancellingOrderId(null)
+      setOrders((prev) =>
+        prev.map((o) => o.id === orderId ? { ...o, status: 'cancelled', cancellation_reason: reason } : o)
+      )
       if (order?.customer_id) {
         sendPush(order.customer_id, '❌ Order Cancelled', 'Your order was cancelled by the restaurant.', `/orders/${orderId}`, 'order-update')
       }
