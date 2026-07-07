@@ -38,11 +38,25 @@ interface MenuItemCardProps {
 
 function MenuItemCard({ item, onClick }: MenuItemCardProps) {
   const addItem = useCartStore((s) => s.addItem)
+  const updateQuantity = useCartStore((s) => s.updateQuantity)
+  const qty = useCartStore((s) => s.items.find((i) => i.product.id === item.id)?.quantity ?? 0)
 
   function handleAdd(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
     addItem({ id: item.id, name: item.name, price: item.price, description: item.description, photo_url: item.photo, is_available: true })
+  }
+
+  function handleInc(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    updateQuantity(item.id, qty + 1)
+  }
+
+  function handleDec(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    updateQuantity(item.id, qty - 1)
   }
 
   return (
@@ -61,12 +75,30 @@ function MenuItemCard({ item, onClick }: MenuItemCardProps) {
           <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed mb-2">{item.description}</p>
           <div className="flex items-center justify-between">
             <span className="font-extrabold text-[#c0392b] text-base">₹{item.price}</span>
-            <button
-              onClick={handleAdd}
-              className="w-8 h-8 bg-[#c0392b] text-white rounded-full flex items-center justify-center shadow-md shadow-[#c0392b]/20 active:scale-90 transition-transform cursor-pointer"
-            >
-              <Plus className="size-4" />
-            </button>
+            {qty === 0 ? (
+              <button
+                onClick={handleAdd}
+                className="w-8 h-8 bg-[#c0392b] text-white rounded-full flex items-center justify-center shadow-md shadow-[#c0392b]/20 active:scale-90 transition-transform cursor-pointer"
+              >
+                <Plus className="size-4" />
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5 bg-[#c0392b] rounded-full px-1 py-0.5 shadow-md shadow-[#c0392b]/20">
+                <button
+                  onClick={handleDec}
+                  className="w-6 h-6 flex items-center justify-center text-white active:scale-90 transition-transform"
+                >
+                  <Minus className="size-3.5" />
+                </button>
+                <span className="text-white text-xs font-extrabold min-w-[14px] text-center">{qty}</span>
+                <button
+                  onClick={handleInc}
+                  className="w-6 h-6 flex items-center justify-center text-white active:scale-90 transition-transform"
+                >
+                  <Plus className="size-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

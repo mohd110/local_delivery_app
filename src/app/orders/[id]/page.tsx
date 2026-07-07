@@ -101,6 +101,8 @@ interface OrderData {
   delivery_longitude: number | null
   created_at: string
   rider_id: string | null
+  unavailable_items: string[] | null
+  modified_total: number | null
   order_items: OrderItem[]
   restaurants: { latitude: number | null; longitude: number | null } | null
 }
@@ -341,7 +343,7 @@ export default function OrderStatusPage({
       .select(
         `id, order_number, status, payment_status, utr_number, total, delivery_fee,
          cancellation_reason, delivery_address, delivery_latitude, delivery_longitude,
-         created_at, rider_id,
+         created_at, rider_id, unavailable_items, modified_total,
          restaurants(latitude, longitude),
          order_items(id, quantity, price_at_order, products(name))`
       )
@@ -397,6 +399,19 @@ export default function OrderStatusPage({
       document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [id, fetchOrder, fetchComplaints])
+
+  async function handleAcceptModification() {
+    if (!order?.modified_total) return
+    setCancelling(true)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: 'accepted', payment_status: 'verified', unavailable_items: null })
+      .eq('id', order.id)
+    if (error) toast.error('Could not accept — please try again.')
+    else { toast.success('Order accepted!'); fetchOrder() }
+    setCancelling(false)
+  }
 
   async function handleCancel() {
     if (!order) return
@@ -610,6 +625,69 @@ export default function OrderStatusPage({
               </div>
             )}
           </div>
+
+          {/* ── Modification Request Card ── */}
+          {!isCancelled && order.unavailable_items && order.unavailable_items.length > 0 && (
+            <div className="bg-amber-50 border-2 border-amber-300 rounded-3xl p-4"
+              style={{ boxShadow: '0 2px 12px rgba(245,158,11,0.15)' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xl">⚠️</span>
+                <div>
+                  <p className="text-xs font-extrabold text-amber-800">Restaurant Updated Your Order</p>
+                  <p className="text-[10px] text-amber-600 font-medium mt-0.5">
+                    Some items are unavailable. Review and decide below.
+                  </p>
+                </div>
+              </div>
+
+              {/* Removed items list */}
+              <div className="space-y-1.5 mb-3">
+                {order.order_items
+                  .filter((i) => order.unavailable_items!.includes(i.id))
+                  .map((i) => (
+                    <div key={i.id} className="flex items-center gap-2 bg-white rounded-xl px-3 py-2">
+                      <span className="text-sm">❌</span>
+                      <span className="text-xs font-semibold text-gray-700 line-through">
+                        {i.products?.name ?? 'Item'} ×{i.quantity}
+                      </span>
+                      <span className="ml-auto text-xs font-bold text-red-500">
+                        −₹{i.price_at_order * i.quantity}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+
+              {/* Totals */}
+              <div className="bg-white rounded-xl px-3 py-2 mb-3 flex justify-between items-center">
+                <div>
+                  <p className="text-[10px] text-gray-400 font-medium">New Total</p>
+                  <p className="text-sm font-extrabold text-amber-700">₹{order.modified_total}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-400 font-medium">Original</p>
+                  <p className="text-xs text-gray-400 line-through">₹{order.total}</p>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAcceptModification}
+                  disabled={cancelling}
+                  className="flex-1 h-10 bg-amber-500 text-white text-xs font-extrabold rounded-xl disabled:opacity-50 active:scale-[0.98] transition-transform"
+                >
+                  {cancelling ? '…' : 'Accept Modified Order'}
+                </button>
+                <button
+                  onClick={handleCancel}
+                  disabled={cancelling}
+                  className="flex-1 h-10 bg-white border-2 border-red-300 text-red-500 text-xs font-extrabold rounded-xl disabled:opacity-50 active:scale-[0.98] transition-transform"
+                >
+                  Cancel Order
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ── Cancel Reason Card ── */}
           {isCancelled && cancelReasonInfo && (

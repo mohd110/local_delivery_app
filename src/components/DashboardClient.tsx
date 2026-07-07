@@ -6,7 +6,7 @@ import { Order, OrderStatus, CancelReason } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import OrderStatusBadge from './OrderStatusBadge'
 import { toast } from 'sonner'
-import { MapPin, Phone, Bike, CheckCircle2, XCircle, X } from 'lucide-react'
+import { MapPin, Phone, Bike, CheckCircle2, XCircle, X, PackageX } from 'lucide-react'
 
 const ORDER_SELECT = `*, order_items(quantity, price_at_order, products(name)),
   customer:profiles!orders_customer_id_fkey(full_name, phone),
@@ -164,6 +164,133 @@ function CancelReasonModal({
   )
 }
 
+// ── Accept Order Modal (item availability check) ─────────────
+function AcceptOrderModal({
+  order,
+  onConfirmAll,
+  onNotifyMissing,
+  onClose,
+  isLoading,
+}: {
+  order: Order
+  onConfirmAll: () => void
+  onNotifyMissing: (unavailableIds: string[], modifiedTotal: number) => void
+  onClose: () => void
+  isLoading: boolean
+}) {
+  const items = order.order_items ?? []
+  const [unavailable, setUnavailable] = useState<Set<string>>(new Set())
+
+  function toggle(id: string) {
+    setUnavailable((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const removedTotal = items
+    .filter((i) => unavailable.has(i.id!))
+    .reduce((sum, i) => sum + (i.price_at_order ?? 0) * (i.quantity ?? 1), 0)
+  const modifiedTotal = order.total - removedTotal
+
+  function handleConfirm() {
+    if (unavailable.size === 0) {
+      onConfirmAll()
+    } else {
+      onNotifyMissing(Array.from(unavailable), modifiedTotal)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm">
+      <div className="w-full max-w-md bg-white rounded-t-3xl shadow-2xl pb-safe">
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-gray-200" />
+        </div>
+
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+          <div>
+            <h2 className="text-sm font-extrabold text-gray-900">Check Item Availability</h2>
+            <p className="text-[11px] text-gray-400 font-medium mt-0.5">
+              Uncheck any items that are not available
+            </p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+            <X className="size-4 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="px-4 py-3 space-y-2 max-h-64 overflow-y-auto">
+          {items.map((item) => {
+            const isUnavailable = unavailable.has(item.id!)
+            return (
+              <button
+                key={item.id}
+                onClick={() => toggle(item.id!)}
+                className={`w-full flex items-center gap-3 p-3 rounded-2xl border-2 text-left transition-all ${
+                  isUnavailable
+                    ? 'border-red-200 bg-red-50'
+                    : 'border-green-200 bg-green-50'
+                }`}
+              >
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                  isUnavailable ? 'border-red-400 bg-white' : 'border-green-500 bg-green-500'
+                }`}>
+                  {!isUnavailable && <span className="text-white text-[10px] font-black">✓</span>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-bold ${isUnavailable ? 'text-red-600 line-through' : 'text-gray-800'}`}>
+                    {item.products?.name ?? 'Item'}
+                  </p>
+                  <p className="text-[10px] text-gray-400 font-medium">
+                    ×{item.quantity} · ₹{(item.price_at_order ?? 0) * (item.quantity ?? 1)}
+                  </p>
+                </div>
+                {isUnavailable && (
+                  <span className="text-[10px] font-bold text-red-500 flex-shrink-0">Not Available</span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {unavailable.size > 0 && (
+          <div className="mx-4 mb-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+            <p className="text-[11px] font-bold text-amber-700">
+              {unavailable.size} item{unavailable.size > 1 ? 's' : ''} removed · New total: ₹{modifiedTotal}
+            </p>
+            <p className="text-[10px] text-amber-600 font-medium mt-0.5">
+              Customer will be asked to accept or cancel
+            </p>
+          </div>
+        )}
+
+        <div className="px-4 py-4 border-t border-gray-100 space-y-2">
+          <button
+            onClick={handleConfirm}
+            disabled={isLoading}
+            className={`w-full h-11 text-white font-bold rounded-xl text-sm disabled:opacity-40 transition-colors ${
+              unavailable.size > 0
+                ? 'bg-amber-500 hover:bg-amber-600'
+                : 'bg-green-600 hover:bg-green-700'
+            }`}
+          >
+            {isLoading
+              ? 'Processing…'
+              : unavailable.size > 0
+              ? `Notify Customer (₹${modifiedTotal})`
+              : 'Verify & Accept Order'}
+          </button>
+          <button onClick={onClose} disabled={isLoading} className="w-full h-10 text-sm font-semibold text-gray-500 hover:bg-gray-50 rounded-xl transition-colors">
+            Go Back
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface Props {
   initialOrders: Order[]
 }
@@ -171,8 +298,8 @@ interface Props {
 export default function DashboardClient({ initialOrders }: Props) {
   const [orders, setOrders] = useState<Order[]>(initialOrders)
   const [updating, setUpdating] = useState<string | null>(null)
-  // orderId currently showing the cancel modal
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null)
+  const [acceptingOrderId, setAcceptingOrderId] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -215,6 +342,23 @@ export default function DashboardClient({ initialOrders }: Props) {
       .update({ payment_status: 'verified', status: 'accepted' })
       .eq('id', orderId)
     if (error) toast.error('Failed to verify payment')
+    else setAcceptingOrderId(null)
+    setUpdating(null)
+  }
+
+  async function notifyMissingItems(orderId: string, unavailableIds: string[], modifiedTotal: number) {
+    setUpdating(orderId)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('orders')
+      .update({ unavailable_items: unavailableIds, modified_total: modifiedTotal })
+      .eq('id', orderId)
+    if (error) {
+      toast.error('Failed to notify customer')
+    } else {
+      toast.success('Customer notified — waiting for their response')
+      setAcceptingOrderId(null)
+    }
     setUpdating(null)
   }
 
@@ -262,6 +406,21 @@ export default function DashboardClient({ initialOrders }: Props) {
           onClose={() => setCancellingOrderId(null)}
         />
       )}
+
+      {/* Accept Order Modal (item availability check) */}
+      {acceptingOrderId && (() => {
+        const order = orders.find((o) => o.id === acceptingOrderId)
+        if (!order) return null
+        return (
+          <AcceptOrderModal
+            order={order}
+            isLoading={updating === acceptingOrderId}
+            onConfirmAll={() => verifyAndAccept(acceptingOrderId)}
+            onNotifyMissing={(ids, total) => notifyMissingItems(acceptingOrderId, ids, total)}
+            onClose={() => setAcceptingOrderId(null)}
+          />
+        )
+      })()}
 
       <div className="space-y-3">
         {orders.map((order) => {
@@ -383,14 +542,22 @@ export default function DashboardClient({ initialOrders }: Props) {
 
               {/* Actions */}
               <div className="px-4 pb-4 space-y-2">
-                {order.status === 'pending' && (
+                {order.status === 'pending' && !order.unavailable_items && (
                   <Button
                     className="w-full h-11 bg-orange-600 hover:bg-orange-700 rounded-xl font-semibold"
-                    onClick={() => verifyAndAccept(order.id)}
+                    onClick={() => setAcceptingOrderId(order.id)}
                     disabled={isBusy}
                   >
                     {isBusy ? 'Verifying…' : 'Verify Payment & Accept'}
                   </Button>
+                )}
+                {order.status === 'pending' && order.unavailable_items && (
+                  <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                    <PackageX className="size-4 text-amber-600 flex-shrink-0" />
+                    <p className="text-xs font-semibold text-amber-700">
+                      Awaiting customer response…
+                    </p>
+                  </div>
                 )}
                 {order.status === 'accepted' && (
                   <Button

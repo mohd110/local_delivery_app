@@ -89,6 +89,8 @@ export interface Order {
   payment_status: PaymentStatus
   utr_number: string | null
   cancellation_reason: CancelReason
+  unavailable_items: string[] | null
+  modified_total: number | null
   order_type: 'delivery' | 'pickup'
   delivery_address: DeliveryAddress
   delivery_fee: number
