@@ -17,8 +17,6 @@ import {
   Bike,
   Compass,
   Phone,
-  MessageSquare,
-  Star,
   Clock,
   ThumbsUp,
   AlertCircle,
@@ -102,6 +100,7 @@ interface OrderData {
   delivery_longitude: number | null
   created_at: string
   rider_id: string | null
+  rider: { full_name: string | null; phone: string | null } | null
   unavailable_items: string[] | null
   modified_total: number | null
   order_items: OrderItem[]
@@ -346,6 +345,7 @@ export default function OrderStatusPage({
         `id, order_number, status, payment_status, utr_number, total, delivery_fee,
          cancellation_reason, delivery_address, delivery_latitude, delivery_longitude,
          created_at, rider_id, unavailable_items, modified_total,
+         rider:profiles!orders_rider_id_fkey(full_name, phone),
          restaurants(latitude, longitude),
          order_items(id, quantity, price_at_order, products(name))`
       )
@@ -457,7 +457,7 @@ export default function OrderStatusPage({
   const isCancelled = order.status === 'cancelled'
   const isDelivered = order.status === 'delivered'
   const msSinceCreated = now - new Date(order.created_at).getTime()
-  const canCancel = !isCancelled && !isDelivered && msSinceCreated < CANCEL_WINDOW_MS
+  const canCancel = !isCancelled && !isDelivered && order.status !== 'out_for_delivery' && msSinceCreated < CANCEL_WINDOW_MS
   const cancelRemainingMs = CANCEL_WINDOW_MS - msSinceCreated
   const step = currentStep(order)
   const statusIdx = STATUS_ORDER.indexOf(order.status)
@@ -772,29 +772,31 @@ export default function OrderStatusPage({
               style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
             >
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80"
-                    className="w-full h-full object-cover"
-                    alt="Rider"
-                  />
+                <div className="w-12 h-12 rounded-full bg-[#ffdad3] flex items-center justify-center flex-shrink-0 border border-gray-200 text-xl">
+                  🛵
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-gray-900">Arjun Sharma</h4>
-                  <p className="text-[10px] text-gray-500 font-semibold flex items-center gap-1 mt-0.5">
-                    <Star className="size-3 fill-amber-400 text-amber-400" />
-                    4.9 · Valued Rider
+                  <h4 className="text-xs font-bold text-gray-900">
+                    {order.rider?.full_name ?? 'Your Rider'}
+                  </h4>
+                  <p className="text-[10px] text-gray-500 font-semibold mt-0.5">
+                    On the way to you
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button className="w-9 h-9 rounded-full bg-[#b51c00] text-white flex items-center justify-center shadow-md">
-                  <Phone className="size-4 fill-white text-white" />
-                </button>
-                <button className="w-9 h-9 rounded-full bg-white text-gray-500 border border-gray-200 flex items-center justify-center shadow-sm">
-                  <MessageSquare className="size-4" />
-                </button>
+                {order.rider?.phone ? (
+                  <a
+                    href={`tel:${order.rider.phone}`}
+                    className="w-9 h-9 rounded-full bg-[#b51c00] text-white flex items-center justify-center shadow-md"
+                  >
+                    <Phone className="size-4 fill-white text-white" />
+                  </a>
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-gray-100 text-gray-300 flex items-center justify-center">
+                    <Phone className="size-4" />
+                  </div>
+                )}
               </div>
             </div>
           ) : (

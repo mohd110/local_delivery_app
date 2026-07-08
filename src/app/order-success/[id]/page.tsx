@@ -22,9 +22,8 @@ export default async function OrderSuccessPage({
 
   if (!order) notFound()
 
-  const shortId = `#${id.slice(0, 8).toUpperCase()}`
-  const addr = order.delivery_address as { address?: string; name?: string; payment?: string } | null
-  const paymentLabel = addr?.payment === 'card' ? 'Credit/Debit Card' : 'Cash on Delivery'
+  const shortId = order.order_number ? `ORD-${order.order_number}` : `#${id.slice(0, 8).toUpperCase()}`
+  const addr = order.delivery_address as { address?: string; name?: string } | null
 
   return (
     <div className="min-h-[100dvh] phone-screen flex flex-col bg-[#f7f8fa] text-gray-900 pb-safe">
@@ -97,19 +96,19 @@ export default async function OrderSuccessPage({
 
           <div className="h-px bg-gray-100" />
 
-          {/* Courier & Payment fields */}
+          {/* Payment & UTR fields */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-[#f8f9fa] rounded-2xl p-3 flex flex-col gap-1 border border-gray-50/50">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
-                🚚 Courier
-              </span>
-              <p className="text-xs font-extrabold text-gray-900">Alex Johnson</p>
-            </div>
             <div className="bg-[#f8f9fa] rounded-2xl p-3 flex flex-col gap-1 border border-gray-50/50">
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
                 💳 Payment
               </span>
-              <p className="text-xs font-extrabold text-gray-900 truncate">{paymentLabel}</p>
+              <p className="text-xs font-extrabold text-gray-900">Paid via UPI</p>
+            </div>
+            <div className="bg-[#f8f9fa] rounded-2xl p-3 flex flex-col gap-1 border border-gray-50/50">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+                🛵 Rider
+              </span>
+              <p className="text-xs font-extrabold text-gray-900 truncate">Being assigned</p>
             </div>
           </div>
 
