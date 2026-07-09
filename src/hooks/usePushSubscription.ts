@@ -36,11 +36,18 @@ export function usePushPermissionState(): 'prompt' | 'granted' | 'unsupported' {
       setState('unsupported')
       return
     }
-    // Check if already subscribed — more reliable than Notification.permission on iOS
+    // Register SW first so ready resolves
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
+
+    // Fallback: show banner after 4s if ready never resolves
+    const fallback = setTimeout(() => setState('prompt'), 4000)
+
     navigator.serviceWorker.ready
       .then((reg) => reg.pushManager.getSubscription())
-      .then((sub) => setState(sub ? 'granted' : 'prompt'))
-      .catch(() => setState('unsupported'))
+      .then((sub) => { clearTimeout(fallback); setState(sub ? 'granted' : 'prompt') })
+      .catch(() => { clearTimeout(fallback); setState('prompt') })
+
+    return () => clearTimeout(fallback)
   }, [])
 
   return state
