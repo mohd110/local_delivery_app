@@ -14,6 +14,14 @@ const plusJakarta = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: 'Wali Baba Foods',
   description: 'Authentic flavors, prepared with Desi Ghee since 1999 — direct from our kitchen.',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Wali Baba Foods',
+  },
+  icons: {
+    apple: '/logo.png',
+  },
 }
 
 export const viewport = {

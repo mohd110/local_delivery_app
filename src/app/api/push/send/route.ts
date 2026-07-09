@@ -45,7 +45,11 @@ export async function POST(req: NextRequest) {
       JSON.stringify({ title, body, url: url ?? '/', tag: tag ?? 'order-update' })
     )
     return NextResponse.json({ ok: true }, { headers: CORS })
-  } catch {
-    return NextResponse.json({ ok: false, reason: 'send failed' }, { headers: CORS })
+  } catch (err: unknown) {
+    const e = err as { statusCode?: number; body?: string; message?: string }
+    return NextResponse.json(
+      { ok: false, reason: 'send failed', statusCode: e?.statusCode, detail: e?.body ?? e?.message },
+      { headers: CORS }
+    )
   }
 }
