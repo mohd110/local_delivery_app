@@ -18,9 +18,6 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
     title: 'Wali Baba Foods',
   },
-  icons: {
-    apple: '/logo.png',
-  },
 }
 
 export const viewport = {
