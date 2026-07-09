@@ -12,19 +12,22 @@ function urlBase64ToUint8Array(base64String: string) {
 async function subscribeAfterPermission() {
   navigator.serviceWorker.register('/sw.js')
   const reg = await navigator.serviceWorker.ready
-  const existing = await reg.pushManager.getSubscription()
-  if (existing) return
 
-  const subscription = await reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
-  })
+  let subscription = await reg.pushManager.getSubscription()
+  if (!subscription) {
+    subscription = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
+    })
+  }
 
-  await fetch('/api/push/subscribe', {
+  // Always try to save — covers the case where permission was granted but DB save failed
+  const res = await fetch('/api/push/subscribe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(subscription),
   })
+  if (!res.ok) throw new Error('DB save failed')
 }
 
 // Returns: 'prompt' = show banner, 'granted' = already subscribed, 'unsupported' = hide
@@ -58,8 +61,13 @@ export async function requestPushPermission(): Promise<boolean> {
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') return false
   }
-  await subscribeAfterPermission().catch(console.error)
-  return true
+  try {
+    await subscribeAfterPermission()
+    return true
+  } catch (e) {
+    console.error('[Push] subscribe failed:', e)
+    return false
+  }
 }
 
 export function usePushSubscription() {
