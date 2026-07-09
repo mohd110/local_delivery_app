@@ -27,21 +27,20 @@ async function subscribeAfterPermission() {
   })
 }
 
-// Returns: 'prompt' = show banner, 'granted' = already enabled, 'denied'/'unsupported' = hide
-export function usePushPermissionState(): 'prompt' | 'granted' | 'denied' | 'unsupported' {
-  const [state, setState] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('unsupported')
+// Returns: 'prompt' = show banner, 'granted' = already subscribed, 'unsupported' = hide
+export function usePushPermissionState(): 'prompt' | 'granted' | 'unsupported' {
+  const [state, setState] = useState<'prompt' | 'granted' | 'unsupported'>('unsupported')
 
   useEffect(() => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       setState('unsupported')
       return
     }
-    // Notification API may be absent on some iOS PWA versions even when PushManager exists
-    if (!('Notification' in window)) {
-      setState('prompt')
-      return
-    }
-    setState(Notification.permission === 'default' ? 'prompt' : Notification.permission as 'granted' | 'denied')
+    // Check if already subscribed — more reliable than Notification.permission on iOS
+    navigator.serviceWorker.ready
+      .then((reg) => reg.pushManager.getSubscription())
+      .then((sub) => setState(sub ? 'granted' : 'prompt'))
+      .catch(() => setState('unsupported'))
   }, [])
 
   return state
