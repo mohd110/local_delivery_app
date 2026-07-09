@@ -3,7 +3,6 @@ import { Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
 import { Toaster } from '@/components/ui/sonner'
 import { Providers } from '@/components/providers'
-import PushSetup from '@/components/PushSetup'
 
 const plusJakarta = Plus_Jakarta_Sans({
   variable: '--font-plus-jakarta',
@@ -44,7 +43,6 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-[#f8f9fa]">
         <Providers>
-          <PushSetup />
           {children}
           <Toaster richColors position="bottom-center" duration={1500} />
         </Providers>

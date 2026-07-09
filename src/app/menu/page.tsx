@@ -7,6 +7,7 @@ import { Plus, Minus, X, Heart, Star, Clock, Search } from 'lucide-react'
 import NavBar from '@/components/NavBar'
 import BottomNav from '@/components/BottomNav'
 import CartBar from '@/components/CartBar'
+import PushSetup from '@/components/PushSetup'
 import { MENU, TOPPINGS_MAP, MenuItem } from '@/lib/menu'
 
 const CATEGORIES = ['Popular', 'Biryani', 'Fry', 'Gravy', 'Kebabs', 'Tandoor', 'Breads', 'Desserts']
@@ -39,7 +40,11 @@ interface MenuItemCardProps {
 function MenuItemCard({ item, onClick }: MenuItemCardProps) {
   const addItem = useCartStore((s) => s.addItem)
   const updateQuantity = useCartStore((s) => s.updateQuantity)
-  const qty = useCartStore((s) => s.items.find((i) => i.product.id === item.id)?.quantity ?? 0)
+  const qty = useCartStore((s) =>
+    s.items
+      .filter((i) => i.product.id === item.id || i.product.id.startsWith(item.id + '-'))
+      .reduce((sum, i) => sum + i.quantity, 0)
+  )
 
   function handleAdd(e: React.MouseEvent) {
     e.preventDefault()
@@ -264,6 +269,7 @@ export default function MenuPage() {
       ` }} />
 
       <NavBar role="customer" onSearchClick={openSearch} />
+      <PushSetup />
 
       {/* Search bar */}
       {searchOpen && (
