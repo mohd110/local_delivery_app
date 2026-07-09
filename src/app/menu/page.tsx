@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { useCartStore } from '@/store/cart'
-import { Plus, Minus, X, Heart, Star, Clock } from 'lucide-react'
+import { Plus, Minus, X, Heart, Star, Clock, Search } from 'lucide-react'
 import NavBar from '@/components/NavBar'
 import BottomNav from '@/components/BottomNav'
 import CartBar from '@/components/CartBar'
@@ -129,6 +129,9 @@ function MenuItemCard({ item, onClick }: MenuItemCardProps) {
 
 export default function MenuPage() {
   const [activeCategory, setActiveCategory] = useState('Popular')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [selectedToppings, setSelectedToppings] = useState<string[]>([])
@@ -173,12 +176,25 @@ export default function MenuPage() {
   const addItem = useCartStore((s) => s.addItem)
   const updateQuantity = useCartStore((s) => s.updateQuantity)
 
-  // Filter items based on active category
-  const filteredItems = activeCategory === 'Popular'
+  // Filter items based on search or active category
+  const q = searchQuery.trim().toLowerCase()
+  const filteredItems = q
+    ? MENU.filter(i => i.name.toLowerCase().includes(q) || i.description.toLowerCase().includes(q))
+    : activeCategory === 'Popular'
     ? MENU
     : MENU.filter(i => i.category === activeCategory)
 
-  const sectionsToShow = activeCategory === 'Popular' ? SECTIONS : null
+  const sectionsToShow = (!q && activeCategory === 'Popular') ? SECTIONS : null
+
+  function openSearch() {
+    setSearchOpen(true)
+    setTimeout(() => searchRef.current?.focus(), 50)
+  }
+
+  function closeSearch() {
+    setSearchOpen(false)
+    setSearchQuery('')
+  }
 
   function handleSelectProduct(item: MenuItem) {
     setSelectedItem(item)
@@ -247,7 +263,24 @@ export default function MenuPage() {
         }
       ` }} />
 
-      <NavBar role="customer" />
+      <NavBar role="customer" onSearchClick={openSearch} />
+
+      {/* Search bar */}
+      {searchOpen && (
+        <div className="bg-white sticky top-14 z-40 px-4 py-2 shadow-sm flex items-center gap-2">
+          <Search className="size-4 text-gray-400 flex-shrink-0" />
+          <input
+            ref={searchRef}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search menu..."
+            className="flex-1 text-sm outline-none text-gray-900 placeholder:text-gray-400"
+          />
+          <button onClick={closeSearch}>
+            <X className="size-4 text-gray-400" />
+          </button>
+        </div>
+      )}
 
       <main className="phone-screen pb-40">
 
@@ -316,7 +349,7 @@ export default function MenuPage() {
         ) : (
           <div className="px-4 pt-4">
             {filteredItems.length === 0 ? (
-              <p className="text-center text-gray-400 py-16 text-sm">No items in this category.</p>
+              <p className="text-center text-gray-400 py-16 text-sm">{q ? `No results for "${searchQuery}"` : 'No items in this category.'}</p>
             ) : (
               <div className="space-y-3">
                 {filteredItems.map((item) => <MenuItemCard key={item.id} item={item} onClick={() => handleSelectProduct(item)} />)}

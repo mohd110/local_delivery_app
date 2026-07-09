@@ -36,7 +36,7 @@ export function usePushPermissionState(): 'prompt' | 'granted' | 'denied' | 'uns
       setState('unsupported')
       return
     }
-    setState(Notification.permission as 'prompt' | 'granted' | 'denied')
+    setState(Notification.permission === 'default' ? 'prompt' : Notification.permission as 'granted' | 'denied')
   }, [])
 
   return state

@@ -10,9 +10,10 @@ interface Props {
   role: 'customer' | 'restaurant'
   title?: string
   showBack?: boolean
+  onSearchClick?: () => void
 }
 
-export default function NavBar({ role, title, showBack }: Props) {
+export default function NavBar({ role, title, showBack, onSearchClick }: Props) {
   const router = useRouter()
   const itemCount = useCartStore((s) => s.items.reduce((sum, i) => sum + i.quantity, 0))
 
@@ -69,7 +70,7 @@ export default function NavBar({ role, title, showBack }: Props) {
 
         {/* Right icons */}
         <div className="flex items-center gap-1 flex-shrink-0">
-          <button className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
+          <button onClick={onSearchClick} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
             <Search className="size-5 text-gray-600" />
           </button>
           <Link href="/checkout" className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors relative">
