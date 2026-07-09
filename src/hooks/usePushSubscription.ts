@@ -32,8 +32,13 @@ export function usePushPermissionState(): 'prompt' | 'granted' | 'denied' | 'uns
   const [state, setState] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('unsupported')
 
   useEffect(() => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       setState('unsupported')
+      return
+    }
+    // Notification API may be absent on some iOS PWA versions even when PushManager exists
+    if (!('Notification' in window)) {
+      setState('prompt')
       return
     }
     setState(Notification.permission === 'default' ? 'prompt' : Notification.permission as 'granted' | 'denied')
@@ -43,9 +48,10 @@ export function usePushPermissionState(): 'prompt' | 'granted' | 'denied' | 'uns
 }
 
 export async function requestPushPermission(): Promise<boolean> {
-  if (!('Notification' in window)) return false
-  const permission = await Notification.requestPermission()
-  if (permission !== 'granted') return false
+  if ('Notification' in window) {
+    const permission = await Notification.requestPermission()
+    if (permission !== 'granted') return false
+  }
   await subscribeAfterPermission().catch(console.error)
   return true
 }
