@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { type OrderStatus, type PaymentStatus, type Complaint } from '@/lib/types'
 import { toast } from 'sonner'
 import BottomNav from '@/components/BottomNav'
+import IOSInstallPrompt from '@/components/IOSInstallPrompt'
 import LiveMap from '@/components/LiveMap'
 import { usePushSubscription } from '@/hooks/usePushSubscription'
 import {
@@ -934,6 +935,7 @@ export default function OrderStatusPage({
       </div>
 
       <BottomNav />
+      <IOSInstallPrompt variant="order" delay={5000} />
     </div>
   )
 }

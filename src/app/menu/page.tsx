@@ -276,7 +276,7 @@ export default function MenuPage() {
 
       <NavBar role="customer" onSearchClick={openSearch} />
       <PushSetup />
-      <IOSInstallPrompt />
+      <IOSInstallPrompt variant="menu" />
 
       {/* Search bar */}
       {searchOpen && (
