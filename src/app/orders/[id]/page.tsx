@@ -456,7 +456,7 @@ export default function OrderStatusPage({
 
   const isCancelled = order.status === 'cancelled'
   const isDelivered = order.status === 'delivered'
-  const msSinceCreated = now - new Date(order.created_at).getTime()
+  const msSinceCreated = Math.max(0, now - new Date(order.created_at).getTime())
   const canCancel = !isCancelled && !isDelivered && msSinceCreated < CANCEL_WINDOW_MS
   const showCantCancel = !isCancelled && !isDelivered && msSinceCreated >= CANCEL_WINDOW_MS
   const cancelRemainingMs = CANCEL_WINDOW_MS - msSinceCreated
