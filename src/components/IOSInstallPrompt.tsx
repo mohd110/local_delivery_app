@@ -40,13 +40,19 @@ export default function IOSInstallPrompt({ variant, delay = 3000 }: Props) {
 
   useEffect(() => {
     if (!isIosSafari()) return
-    if (isInstalled()) return
 
     const count = getShownCount()
-    // menu variant shows on first visit (count === 0)
-    // order variant shows on second chance (count === 1)
-    if (variant === 'menu' && count !== 0) return
-    if (variant === 'order' && count !== 1) return
+
+    if (variant === 'menu') {
+      // Always show on menu first visit regardless of install state
+      if (count !== 0) return
+    }
+
+    if (variant === 'order') {
+      // Only show if menu prompt was already seen AND app is not installed
+      if (count !== 1) return
+      if (isInstalled()) return
+    }
 
     const t = setTimeout(() => {
       setShow(true)
