@@ -24,7 +24,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 
-const CANCEL_WINDOW_MS = 1 * 60 * 1000
+const CANCEL_WINDOW_MS = 59 * 1000
 
 function formatCountdown(ms: number) {
   const totalSeconds = Math.max(0, Math.ceil(ms / 1000))
