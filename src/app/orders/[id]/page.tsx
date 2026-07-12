@@ -786,7 +786,10 @@ export default function OrderStatusPage({
                   <p className="text-[10px] text-gray-500 font-medium mt-0.5 leading-relaxed">
                     Your order is already being prepared. Cancelling now will result in a cancellation charge on your next order.
                   </p>
-                  <button className="mt-2 text-[10px] font-bold text-orange-500 underline underline-offset-2">
+                  <button
+                    onClick={() => router.push(`/orders/${id}/complaint`)}
+                    className="mt-2 text-[10px] font-bold text-orange-500 underline underline-offset-2"
+                  >
                     Report an issue
                   </button>
                 </div>

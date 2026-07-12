@@ -12,6 +12,11 @@ import { MENU, TOPPINGS_MAP, MenuItem } from '@/lib/menu'
 
 const CATEGORIES = ['Popular', 'Biryani', 'Fry', 'Gravy', 'Kebabs', 'Tandoor', 'Breads', 'Desserts']
 
+function getCategoryCount(cat: string): number {
+  if (cat === 'Popular') return MENU.filter(i => !!i.bestseller).length
+  return MENU.filter(i => i.category === cat).length
+}
+
 const SECTIONS = [
   { title: 'Popular Choice', filter: (i: MenuItem) => !!i.bestseller },
   { title: 'From the Clay Oven', filter: (i: MenuItem) => i.category === 'Kebabs' || i.category === 'Tandoor' },
@@ -330,7 +335,7 @@ export default function MenuPage() {
                     : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                 }`}
               >
-                {cat}
+                {cat} ({getCategoryCount(cat)})
               </button>
             ))}
           </div>

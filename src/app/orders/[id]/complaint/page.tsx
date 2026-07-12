@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { ChevronLeft, CheckCircle2 } from 'lucide-react'
 
 const CATEGORIES: { value: ComplaintCategory; label: string }[] = [
+  { value: 'cancel_order', label: 'Cancel My Order' },
   { value: 'food_quality', label: 'Food Quality Issue' },
   { value: 'missing_items', label: 'Missing Item(s)' },
   { value: 'wrong_items', label: 'Wrong Item(s) Delivered' },

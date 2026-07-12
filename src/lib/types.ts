@@ -47,6 +47,7 @@ export type ComplaintCategory =
   | 'late_delivery'
   | 'payment_issue'
   | 'rider_behavior'
+  | 'cancel_order'
   | 'other'
 
 export type ComplaintStatus = 'open' | 'in_progress' | 'resolved'

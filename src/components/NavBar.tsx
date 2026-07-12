@@ -56,16 +56,22 @@ export default function NavBar({ role, title, showBack, onSearchClick }: Props) 
         ) : null}
 
         {/* Center text block */}
-        <div className="flex-1 min-w-0">
-          <h1 className="font-extrabold text-gray-900 text-base leading-tight truncate">
-            {title ?? 'Wali Baba Foods'}
-          </h1>
+        <div className="flex-1 min-w-0 flex items-center gap-2">
           {!showBack && (
-            <p className="text-[11px] text-gray-400 font-medium flex items-center gap-1 mt-0.5">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
-              25–35 mins &bull; 0.6 km
-            </p>
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src="/logo.png" alt="Wali Baba Foods" className="w-8 h-8 object-contain flex-shrink-0" />
           )}
+          <div className="min-w-0">
+            <h1 className="font-extrabold text-gray-900 text-base leading-tight truncate">
+              {title ?? 'Wali Baba Foods'}
+            </h1>
+            {!showBack && (
+              <p className="text-[11px] text-gray-400 font-medium flex items-center gap-1 mt-0.5">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
+                25–35 mins &bull; 0.6 km
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Right icons */}

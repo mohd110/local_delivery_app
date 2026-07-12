@@ -31,12 +31,12 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('push_subscriptions')
-    .select('subscription')
+    .select('id, subscription')
     .eq('customer_id', customerId)
     .single()
 
   if (error || !data) {
-    return NextResponse.json({ ok: false, reason: 'no subscription', error: error?.message }, { headers: CORS })
+    return NextResponse.json({ ok: false, reason: 'no subscription' }, { headers: CORS })
   }
 
   try {
@@ -47,6 +47,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true }, { headers: CORS })
   } catch (err: unknown) {
     const e = err as { statusCode?: number; body?: string; message?: string }
+    // Subscription expired or invalid — remove it so banner shows again next login
+    if (e?.statusCode === 404 || e?.statusCode === 410) {
+      await supabaseAdmin.from('push_subscriptions').delete().eq('id', data.id)
+    }
     return NextResponse.json(
       { ok: false, reason: 'send failed', statusCode: e?.statusCode, detail: e?.body ?? e?.message },
       { headers: CORS }
