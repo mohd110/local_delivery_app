@@ -24,7 +24,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 
-const CANCEL_WINDOW_MS = 5 * 60 * 1000
+const CANCEL_WINDOW_MS = 1 * 60 * 1000
 
 function formatCountdown(ms: number) {
   const totalSeconds = Math.max(0, Math.ceil(ms / 1000))
@@ -66,7 +66,7 @@ const CANCEL_REASON_LABELS: Record<NonNullable<CancelReason>, { label: string; d
   customer_requested: {
     emoji: '👋',
     label: 'Cancelled by You',
-    desc: 'You cancelled this order within the 5-minute window.',
+    desc: 'You cancelled this order within the 1-minute window.',
   },
   other: {
     emoji: '📋',
@@ -458,6 +458,7 @@ export default function OrderStatusPage({
   const isDelivered = order.status === 'delivered'
   const msSinceCreated = now - new Date(order.created_at).getTime()
   const canCancel = !isCancelled && !isDelivered && msSinceCreated < CANCEL_WINDOW_MS
+  const showCantCancel = !isCancelled && !isDelivered && msSinceCreated >= CANCEL_WINDOW_MS
   const cancelRemainingMs = CANCEL_WINDOW_MS - msSinceCreated
   const step = currentStep(order)
   const statusIdx = STATUS_ORDER.indexOf(order.status)
@@ -743,7 +744,7 @@ export default function OrderStatusPage({
             </div>
           )}
 
-          {/* ── Cancel Order (5-minute window) ── */}
+          {/* ── Cancel Order (1-minute window) ── */}
           {canCancel && (
             <div
               className="bg-white rounded-3xl p-4 flex items-center justify-between gap-3"
@@ -752,7 +753,7 @@ export default function OrderStatusPage({
               <div className="min-w-0">
                 <p className="text-xs font-bold text-gray-900">Need to cancel?</p>
                 <p className="text-[10px] text-gray-400 font-medium mt-0.5">
-                  You can cancel within {formatCountdown(cancelRemainingMs)} of placing this order
+                  You can cancel within {formatCountdown(cancelRemainingMs)}
                 </p>
               </div>
               <button
@@ -762,6 +763,29 @@ export default function OrderStatusPage({
               >
                 {cancelling ? 'Cancelling…' : 'Cancel Order'}
               </button>
+            </div>
+          )}
+
+          {/* ── Can't cancel — window passed ── */}
+          {showCantCancel && (
+            <div
+              className="bg-white rounded-3xl p-4"
+              style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <AlertCircle className="size-4 text-orange-500" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-gray-900">Order cannot be cancelled</p>
+                  <p className="text-[10px] text-gray-500 font-medium mt-0.5 leading-relaxed">
+                    Your order is already being prepared. Cancelling now will result in a cancellation charge on your next order.
+                  </p>
+                  <button className="mt-2 text-[10px] font-bold text-orange-500 underline underline-offset-2">
+                    Report an issue
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
