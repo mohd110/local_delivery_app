@@ -8,6 +8,7 @@ import NavBar from '@/components/NavBar'
 import BottomNav from '@/components/BottomNav'
 import CartBar from '@/components/CartBar'
 import PushSetup from '@/components/PushSetup'
+import IOSInstallPrompt from '@/components/IOSInstallPrompt'
 import { MENU, TOPPINGS_MAP, MenuItem } from '@/lib/menu'
 
 const CATEGORIES = ['Popular', 'Biryani', 'Fry', 'Gravy', 'Kebabs', 'Tandoor', 'Breads', 'Desserts']
@@ -275,6 +276,7 @@ export default function MenuPage() {
 
       <NavBar role="customer" onSearchClick={openSearch} />
       <PushSetup />
+      <IOSInstallPrompt />
 
       {/* Search bar */}
       {searchOpen && (
