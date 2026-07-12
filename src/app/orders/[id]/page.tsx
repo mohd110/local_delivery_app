@@ -337,6 +337,7 @@ export default function OrderStatusPage({
   const [complaints, setComplaints] = useState<Complaint[]>([])
   const [cancelling, setCancelling] = useState(false)
   const [now, setNow] = useState(() => Date.now())
+  const cancelDeadlineRef = useRef<number | null>(null)
 
   const fetchOrder = useCallback(async () => {
     const supabase = createClient()
@@ -456,10 +457,14 @@ export default function OrderStatusPage({
 
   const isCancelled = order.status === 'cancelled'
   const isDelivered = order.status === 'delivered'
-  const msSinceCreated = Math.max(0, now - new Date(order.created_at).getTime())
-  const canCancel = !isCancelled && !isDelivered && msSinceCreated < CANCEL_WINDOW_MS
-  const showCantCancel = !isCancelled && !isDelivered && msSinceCreated >= CANCEL_WINDOW_MS
-  const cancelRemainingMs = CANCEL_WINDOW_MS - msSinceCreated
+  // Set client-side deadline once so server/client clock skew doesn't affect the countdown
+  if (cancelDeadlineRef.current === null) {
+    const rawRemaining = new Date(order.created_at).getTime() + CANCEL_WINDOW_MS - Date.now()
+    cancelDeadlineRef.current = Date.now() + Math.min(CANCEL_WINDOW_MS, Math.max(0, rawRemaining))
+  }
+  const cancelRemainingMs = Math.max(0, cancelDeadlineRef.current - now)
+  const canCancel = !isCancelled && !isDelivered && cancelRemainingMs > 0
+  const showCantCancel = !isCancelled && !isDelivered && cancelRemainingMs === 0
   const step = currentStep(order)
   const statusIdx = STATUS_ORDER.indexOf(order.status)
   const showRider = statusIdx >= 4
