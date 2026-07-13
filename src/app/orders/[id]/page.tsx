@@ -468,7 +468,7 @@ export default function OrderStatusPage({
   const showCantCancel = !isCancelled && !isDelivered && cancelRemainingMs === 0
   const step = currentStep(order)
   const statusIdx = STATUS_ORDER.indexOf(order.status)
-  const showRider = statusIdx >= 4
+  const showRider = !!order.rider_id
 
   const isRestaurantCancelled =
     isCancelled &&
