@@ -8,7 +8,7 @@ webpush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY!
 )
 
-const supabaseAdmin = createClient(
+const getSupabaseAdmin = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400, headers: CORS })
   }
 
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await getSupabaseAdmin()
     .from('push_subscriptions')
     .select('id, subscription')
     .eq('customer_id', customerId)
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     const e = err as { statusCode?: number; body?: string; message?: string }
     // Subscription expired or invalid — remove it so banner shows again next login
     if (e?.statusCode === 404 || e?.statusCode === 410) {
-      await supabaseAdmin.from('push_subscriptions').delete().eq('id', data.id)
+      await getSupabaseAdmin().from('push_subscriptions').delete().eq('id', data.id)
     }
     return NextResponse.json(
       { ok: false, reason: 'send failed', statusCode: e?.statusCode, detail: e?.body ?? e?.message },

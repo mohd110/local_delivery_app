@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useCartStore } from '@/store/cart'
 import { Plus, Minus, X, Heart, Star, Clock, Search } from 'lucide-react'
@@ -9,37 +9,26 @@ import BottomNav from '@/components/BottomNav'
 import CartBar from '@/components/CartBar'
 import PushSetup from '@/components/PushSetup'
 import IOSInstallPrompt from '@/components/IOSInstallPrompt'
-import { MENU, TOPPINGS_MAP, MenuItem } from '@/lib/menu'
+import { Product } from '@/lib/types'
+import { createClient } from '@/lib/supabase/client'
 
-const CATEGORIES = ['Popular', 'Biryani', 'Fry', 'Gravy', 'Kebabs', 'Tandoor', 'Breads', 'Desserts']
-
-function getCategoryCount(cat: string): number {
-  if (cat === 'Popular') return MENU.filter(i => !!i.bestseller).length
-  return MENU.filter(i => i.category === cat).length
-}
-
-const SECTIONS = [
-  { title: 'Popular Choice', filter: (i: MenuItem) => !!i.bestseller },
-  { title: 'From the Clay Oven', filter: (i: MenuItem) => i.category === 'Kebabs' || i.category === 'Tandoor' },
-  { title: 'Biryani & Gravy', filter: (i: MenuItem) => i.category === 'Biryani' || i.category === 'Gravy' },
-]
+const CATEGORIES = ['Popular', 'Biryani', 'Fry', 'Gravy', 'Kebabs', 'Tandoor', 'Breads', 'Dessert']
 
 function getCategoryEmoji(category: string) {
-  switch (category) {
-    case 'Biryani': return '🍛'
-    case 'Gravy': return '🍲'
-    case 'Breads': return '🫓'
-    case 'Fry': return '🍗'
-    case 'Kebabs': return '🍢'
-    case 'Tandoor': return '🔥'
-    case 'Desserts': return '🍧'
-    case 'Combos': return '🍱'
-    default: return '🍽'
-  }
+  const cat = (category || '').toLowerCase()
+  if (cat.includes('biryani')) return '🍛'
+  if (cat.includes('gravy')) return '🍲'
+  if (cat.includes('bread')) return '🫓'
+  if (cat.includes('fry')) return '🍗'
+  if (cat.includes('kebab')) return '🍢'
+  if (cat.includes('tandoor')) return '🔥'
+  if (cat.includes('dessert')) return '🍧'
+  if (cat.includes('combo')) return '🍱'
+  return '🍽'
 }
 
 interface MenuItemCardProps {
-  item: MenuItem
+  item: Product
   onClick: () => void
 }
 
@@ -55,7 +44,7 @@ function MenuItemCard({ item, onClick }: MenuItemCardProps) {
   function handleAdd(e: React.MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
-    addItem({ id: item.id, name: item.name, price: item.price, description: item.description, photo_url: item.photo, is_available: true })
+    addItem(item)
   }
 
   function handleInc(e: React.MouseEvent) {
@@ -70,13 +59,15 @@ function MenuItemCard({ item, onClick }: MenuItemCardProps) {
     updateQuantity(item.id, qty - 1)
   }
 
+  const isBestseller = item.name.toLowerCase().includes('butter chicken') || item.name.toLowerCase() === 'chicken biryani'
+
   return (
     <div onClick={onClick} className="block cursor-pointer">
       <div className="bg-white rounded-2xl flex items-center gap-3 p-3 shadow-[0_2px_12px_rgba(0,0,0,0.06)] active:scale-[0.98] transition-transform">
         {/* Text */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-0.5">
-            {item.bestseller && (
+            {isBestseller && (
               <span className="bg-[#fff0ee] text-[#c0392b] text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide">
                 Best Seller
               </span>
@@ -114,11 +105,11 @@ function MenuItemCard({ item, onClick }: MenuItemCardProps) {
         </div>
 
         {/* Image */}
-        <div className="w-24 h-24 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center text-4xl shadow-inner border border-gray-50/50">
-          {item.photo ? (
+        <div className="w-24 h-24 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center text-4xl shadow-inner border border-gray-50/50 relative">
+          {item.photo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={item.photo}
+              src={item.photo_url}
               alt={item.name}
               className="w-full h-full object-cover"
               onError={(e) => {
@@ -132,6 +123,11 @@ function MenuItemCard({ item, onClick }: MenuItemCardProps) {
           ) : (
             <span>{getCategoryEmoji(item.category)}</span>
           )}
+          {!item.is_available && (
+             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+               <span className="text-white text-[9px] font-bold">Unavailable</span>
+             </div>
+          )}
         </div>
       </div>
     </div>
@@ -143,10 +139,36 @@ export default function MenuPage() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
-  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null)
+  
+  const [MENU, setMENU] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const [selectedItem, setSelectedItem] = useState<Product | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [selectedToppings, setSelectedToppings] = useState<string[]>([])
   const [isFavorite, setIsFavorite] = useState(false)
+
+  const supabase = createClient()
+
+  useEffect(() => {
+    supabase.from('products').select('*').order('created_at').then(({ data }) => {
+      if (data) {
+        setMENU(data.filter(d => d.is_available))
+      }
+      setLoading(false)
+    })
+  }, [supabase])
+
+  function getCategoryCount(cat: string): number {
+    if (cat === 'Popular') return MENU.filter(i => i.name.toLowerCase().includes('butter chicken') || i.name.toLowerCase() === 'chicken biryani').length
+    return MENU.filter(i => (i.category || '').toLowerCase() === cat.toLowerCase()).length
+  }
+
+  const SECTIONS = [
+    { title: 'Popular Choice', filter: (i: Product) => i.name.toLowerCase().includes('butter chicken') || i.name.toLowerCase() === 'chicken biryani' },
+    { title: 'From the Clay Oven', filter: (i: Product) => (i.category || '').toLowerCase() === 'kebabs' || (i.category || '').toLowerCase() === 'tandoor' },
+    { title: 'Biryani & Gravy', filter: (i: Product) => (i.category || '').toLowerCase() === 'biryani' || (i.category || '').toLowerCase() === 'gravy' },
+  ]
 
   // Horizontal scroll grab-and-drag states
   const [isDown, setIsDown] = useState(false)
@@ -160,13 +182,8 @@ export default function MenuPage() {
     setScrollLeftState(slider.scrollLeft)
   }
 
-  const handleMouseLeave = () => {
-    setIsDown(false)
-  }
-
-  const handleMouseUp = () => {
-    setIsDown(false)
-  }
+  const handleMouseLeave = () => { setIsDown(false) }
+  const handleMouseUp = () => { setIsDown(false) }
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDown) return
@@ -190,10 +207,10 @@ export default function MenuPage() {
   // Filter items based on search or active category
   const q = searchQuery.trim().toLowerCase()
   const filteredItems = q
-    ? MENU.filter(i => i.name.toLowerCase().includes(q) || i.description.toLowerCase().includes(q))
+    ? MENU.filter(i => i.name.toLowerCase().includes(q) || (i.description || '').toLowerCase().includes(q))
     : activeCategory === 'Popular'
     ? MENU
-    : MENU.filter(i => i.category === activeCategory)
+    : MENU.filter(i => (i.category || '').toLowerCase() === activeCategory.toLowerCase())
 
   const sectionsToShow = (!q && activeCategory === 'Popular') ? SECTIONS : null
 
@@ -207,7 +224,7 @@ export default function MenuPage() {
     setSearchQuery('')
   }
 
-  function handleSelectProduct(item: MenuItem) {
+  function handleSelectProduct(item: Product) {
     setSelectedItem(item)
     setQuantity(1)
     setSelectedToppings([])
@@ -215,10 +232,10 @@ export default function MenuPage() {
   }
 
   // Calculate dynamic price based on selected toppings
-  const activeToppingsPrice = selectedItem
-    ? TOPPINGS_MAP[selectedItem.category]?.reduce((sum, t) => {
-        return selectedToppings.includes(t.name) ? sum + t.price : sum
-      }, 0) || 0
+  const activeToppingsPrice = selectedItem && Array.isArray(selectedItem.variants)
+    ? selectedItem.variants.reduce((sum, t) => {
+        return selectedToppings.includes(t.name) ? sum + (Number(t.price) || 0) : sum
+      }, 0)
     : 0
 
   const itemTotalPrice = selectedItem ? (selectedItem.price + activeToppingsPrice) * quantity : 0
@@ -226,16 +243,16 @@ export default function MenuPage() {
   function handleModalAddToCart() {
     if (!selectedItem) return
 
-    const activeToppings = TOPPINGS_MAP[selectedItem.category]?.filter((t) =>
+    const activeToppings = Array.isArray(selectedItem.variants) ? selectedItem.variants.filter((t) =>
       selectedToppings.includes(t.name)
-    ) || []
+    ) : []
 
     const toppingsSuffix = activeToppings.length > 0
       ? ` (+ ${activeToppings.map(t => t.name).join(', ')})`
       : ''
 
     const finalName = `${selectedItem.name}${toppingsSuffix}`
-    const finalPrice = selectedItem.price + activeToppings.reduce((sum, t) => sum + t.price, 0)
+    const finalPrice = selectedItem.price + activeToppings.reduce((sum, t) => sum + (Number(t.price) || 0), 0)
     const cartItemId = `${selectedItem.id}-${selectedToppings.join('-')}`
 
     addItem({
@@ -243,8 +260,10 @@ export default function MenuPage() {
       name: finalName,
       price: finalPrice,
       description: selectedItem.description,
-      photo_url: selectedItem.photo,
+      photo_url: selectedItem.photo_url,
       is_available: true,
+      category: selectedItem.category,
+      variants: []
     })
 
     if (quantity > 1) {
@@ -344,7 +363,9 @@ export default function MenuPage() {
         </div>
 
         {/* ── Menu Sections ── */}
-        {sectionsToShow ? (
+        {loading ? (
+          <div className="px-4 pt-16 flex justify-center text-gray-400">Loading menu...</div>
+        ) : sectionsToShow ? (
           <div className="px-4 pt-4 space-y-6">
             {sectionsToShow.map((section) => {
               const items = MENU.filter(section.filter)
@@ -389,10 +410,10 @@ export default function MenuPage() {
             <div className="flex-1 overflow-y-auto px-5 pb-6">
               {/* Product Image */}
               <div className="relative w-full aspect-square max-h-[300px] rounded-3xl overflow-hidden bg-gray-50 mb-5 shadow-inner flex items-center justify-center text-8xl">
-                {selectedItem.photo ? (
+                {selectedItem.photo_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={selectedItem.photo}
+                    src={selectedItem.photo_url}
                     alt={selectedItem.name}
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -450,16 +471,16 @@ export default function MenuPage() {
               </p>
 
               {/* Optional Toppings Section */}
-              {TOPPINGS_MAP[selectedItem.category] && (
+              {Array.isArray(selectedItem.variants) && selectedItem.variants.length > 0 && (
                 <div>
                   <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-sm font-extrabold text-gray-900">Extra Toppings</h3>
+                    <h3 className="text-sm font-extrabold text-gray-900">Variants / Add-ons</h3>
                     <span className="bg-gray-100 text-gray-400 text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
                       Optional
                     </span>
                   </div>
                   <div className="space-y-2.5">
-                    {TOPPINGS_MAP[selectedItem.category].map((topping) => {
+                    {selectedItem.variants.map((topping) => {
                       const isSelected = selectedToppings.includes(topping.name)
                       return (
                         <label
@@ -485,7 +506,9 @@ export default function MenuPage() {
                             />
                             <span className="text-xs font-bold text-gray-700">{topping.name}</span>
                           </div>
-                          <span className="text-xs font-extrabold text-gray-400">+₹{topping.price}</span>
+                          <span className="text-xs font-extrabold text-gray-400">
+                            {Number(topping.price) > 0 ? `+₹${topping.price}` : 'Free'}
+                          </span>
                         </label>
                       )
                     })}
