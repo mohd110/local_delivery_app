@@ -15,6 +15,7 @@ const CATEGORY_LABELS: Record<ComplaintCategory, string> = {
   late_delivery: 'Order Delivered Late',
   payment_issue: 'Payment / Billing Issue',
   rider_behavior: 'Rider Behavior',
+  cancel_order: 'Cancel My Order',
   other: 'Other',
 }
 

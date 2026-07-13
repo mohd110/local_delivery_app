@@ -3,7 +3,6 @@ import { Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
 import { Toaster } from '@/components/ui/sonner'
 import { Providers } from '@/components/providers'
-import PushSetup from '@/components/PushSetup'
 
 const plusJakarta = Plus_Jakarta_Sans({
   variable: '--font-plus-jakarta',
@@ -14,6 +13,15 @@ const plusJakarta = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: 'Wali Baba Foods',
   description: 'Authentic flavors, prepared with Desi Ghee since 1999 — direct from our kitchen.',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Wali Baba Foods',
+  },
+  icons: {
+    apple: '/apple-touch-icon.png',
+    icon: '/logo.png',
+  },
 }
 
 export const viewport = {
@@ -36,7 +44,6 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-[#f8f9fa]">
         <Providers>
-          <PushSetup />
           {children}
           <Toaster richColors position="bottom-center" duration={1500} />
         </Providers>

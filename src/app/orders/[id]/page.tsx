@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { type OrderStatus, type PaymentStatus, type Complaint } from '@/lib/types'
 import { toast } from 'sonner'
 import BottomNav from '@/components/BottomNav'
+import IOSInstallPrompt from '@/components/IOSInstallPrompt'
 import LiveMap from '@/components/LiveMap'
 import { usePushSubscription } from '@/hooks/usePushSubscription'
 import {
@@ -22,7 +23,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 
-const CANCEL_WINDOW_MS = 5 * 60 * 1000
+const CANCEL_WINDOW_MS = 59 * 1000
 
 function formatCountdown(ms: number) {
   const totalSeconds = Math.max(0, Math.ceil(ms / 1000))
@@ -64,7 +65,7 @@ const CANCEL_REASON_LABELS: Record<NonNullable<CancelReason>, { label: string; d
   customer_requested: {
     emoji: '👋',
     label: 'Cancelled by You',
-    desc: 'You cancelled this order within the 5-minute window.',
+    desc: 'You cancelled this order within the 1-minute window.',
   },
   other: {
     emoji: '📋',
@@ -336,6 +337,7 @@ export default function OrderStatusPage({
   const [complaints, setComplaints] = useState<Complaint[]>([])
   const [cancelling, setCancelling] = useState(false)
   const [now, setNow] = useState(() => Date.now())
+  const cancelDeadlineRef = useRef<number | null>(null)
 
   const fetchOrder = useCallback(async () => {
     const supabase = createClient()
@@ -456,9 +458,14 @@ export default function OrderStatusPage({
 
   const isCancelled = order.status === 'cancelled'
   const isDelivered = order.status === 'delivered'
-  const msSinceCreated = now - new Date(order.created_at).getTime()
-  const canCancel = !isCancelled && !isDelivered && order.status !== 'out_for_delivery' && msSinceCreated < CANCEL_WINDOW_MS
-  const cancelRemainingMs = CANCEL_WINDOW_MS - msSinceCreated
+  // Set client-side deadline once so server/client clock skew doesn't affect the countdown
+  if (cancelDeadlineRef.current === null) {
+    const rawRemaining = new Date(order.created_at).getTime() + CANCEL_WINDOW_MS - Date.now()
+    cancelDeadlineRef.current = Date.now() + Math.min(CANCEL_WINDOW_MS, Math.max(0, rawRemaining))
+  }
+  const cancelRemainingMs = Math.max(0, cancelDeadlineRef.current - now)
+  const canCancel = !isCancelled && !isDelivered && cancelRemainingMs > 0
+  const showCantCancel = !isCancelled && !isDelivered && cancelRemainingMs === 0
   const step = currentStep(order)
   const statusIdx = STATUS_ORDER.indexOf(order.status)
   const showRider = statusIdx >= 4
@@ -743,7 +750,7 @@ export default function OrderStatusPage({
             </div>
           )}
 
-          {/* ── Cancel Order (5-minute window) ── */}
+          {/* ── Cancel Order (1-minute window) ── */}
           {canCancel && (
             <div
               className="bg-white rounded-3xl p-4 flex items-center justify-between gap-3"
@@ -752,7 +759,7 @@ export default function OrderStatusPage({
               <div className="min-w-0">
                 <p className="text-xs font-bold text-gray-900">Need to cancel?</p>
                 <p className="text-[10px] text-gray-400 font-medium mt-0.5">
-                  You can cancel within {formatCountdown(cancelRemainingMs)} of placing this order
+                  You can cancel within {formatCountdown(cancelRemainingMs)}
                 </p>
               </div>
               <button
@@ -762,6 +769,32 @@ export default function OrderStatusPage({
               >
                 {cancelling ? 'Cancelling…' : 'Cancel Order'}
               </button>
+            </div>
+          )}
+
+          {/* ── Can't cancel — window passed ── */}
+          {showCantCancel && (
+            <div
+              className="bg-white rounded-3xl p-4"
+              style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <AlertCircle className="size-4 text-orange-500" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-gray-900">Order cannot be cancelled</p>
+                  <p className="text-[10px] text-gray-500 font-medium mt-0.5 leading-relaxed">
+                    Your order is already being prepared. Cancelling now will result in a cancellation charge on your next order.
+                  </p>
+                  <button
+                    onClick={() => router.push(`/orders/${id}/complaint`)}
+                    className="mt-2 text-[10px] font-bold text-orange-500 underline underline-offset-2"
+                  >
+                    Report an issue
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -904,6 +937,7 @@ export default function OrderStatusPage({
       </div>
 
       <BottomNav />
+      <IOSInstallPrompt variant="order" delay={5000} />
     </div>
   )
 }

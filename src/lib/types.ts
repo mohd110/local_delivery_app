@@ -17,6 +17,8 @@ export interface Product {
   price: number
   photo_url: string | null
   is_available: boolean
+  category: string
+  variants: { name: string; price: number }[]
 }
 
 export interface DeliveryAddress {
@@ -47,6 +49,7 @@ export type ComplaintCategory =
   | 'late_delivery'
   | 'payment_issue'
   | 'rider_behavior'
+  | 'cancel_order'
   | 'other'
 
 export type ComplaintStatus = 'open' | 'in_progress' | 'resolved'

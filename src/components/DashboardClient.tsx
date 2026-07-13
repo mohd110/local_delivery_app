@@ -292,11 +292,17 @@ function AcceptOrderModal({
 }
 
 async function sendPush(customerId: string, title: string, body: string, url: string, tag?: string) {
-  await fetch('/api/push/send', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ customerId, title, body, url, tag }),
-  }).catch(() => {})
+  try {
+    const res = await fetch('/api/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customerId, title, body, url, tag }),
+    })
+    const data = await res.json()
+    console.log('[Push]', data)
+  } catch (e) {
+    console.error('[Push] fetch failed', e)
+  }
 }
 
 const STATUS_PUSH: Partial<Record<string, { title: string; body: string }>> = {

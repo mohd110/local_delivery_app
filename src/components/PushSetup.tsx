@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Bell, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { usePushSubscription, usePushPermissionState, requestPushPermission } from '@/hooks/usePushSubscription'
 
 export default function PushSetup() {
@@ -12,9 +13,14 @@ export default function PushSetup() {
 
   async function handleEnable() {
     setLoading(true)
-    const granted = await requestPushPermission()
+    const result = await requestPushPermission()
     setLoading(false)
-    if (granted) setDismissed(true)
+    if (result.ok) {
+      setDismissed(true)
+      toast.success('Notifications enabled!')
+    } else {
+      toast.error(result.error ?? 'Could not enable notifications')
+    }
   }
 
   if (permState !== 'prompt' || dismissed) return null

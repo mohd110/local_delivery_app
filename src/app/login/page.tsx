@@ -30,6 +30,9 @@ export default function LoginPage() {
       return
     }
 
+    // Kick out any other device logged in with this account
+    await supabase.auth.signOut({ scope: 'others' })
+
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
 

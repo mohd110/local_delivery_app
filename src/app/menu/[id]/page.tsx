@@ -1,24 +1,24 @@
 'use client'
 
-import { useState, use } from 'react'
+import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCartStore } from '@/store/cart'
 import { Plus, Minus, Heart, Star, Clock, ChevronLeft } from 'lucide-react'
 import { toast } from 'sonner'
-import { MENU, TOPPINGS_MAP } from '@/lib/menu'
+import { Product } from '@/lib/types'
+import { createClient } from '@/lib/supabase/client'
 
 function getCategoryEmoji(category: string) {
-  switch (category) {
-    case 'Biryani': return '🍛'
-    case 'Gravy': return '🍲'
-    case 'Breads': return '🫓'
-    case 'Fry': return '🍗'
-    case 'Kebabs': return '🍢'
-    case 'Tandoor': return '🔥'
-    case 'Desserts': return '🍧'
-    case 'Combos': return '🍱'
-    default: return '🍽'
-  }
+  const cat = (category || '').toLowerCase()
+  if (cat.includes('biryani')) return '🍛'
+  if (cat.includes('gravy')) return '🍲'
+  if (cat.includes('bread')) return '🫓'
+  if (cat.includes('fry')) return '🍗'
+  if (cat.includes('kebab')) return '🍢'
+  if (cat.includes('tandoor')) return '🔥'
+  if (cat.includes('dessert')) return '🍧'
+  if (cat.includes('combo')) return '🍱'
+  return '🍽'
 }
 
 export default function ProductDetailPage({
@@ -29,13 +29,31 @@ export default function ProductDetailPage({
   const router = useRouter()
   const { id } = use(params)
   
-  const product = MENU.find((item) => item.id === id)
+  const [product, setProduct] = useState<Product | null>(null)
+  const [loading, setLoading] = useState(true)
+
   const addItem = useCartStore((s) => s.addItem)
   const updateQuantity = useCartStore((s) => s.updateQuantity)
 
   const [quantity, setQuantity] = useState(1)
   const [selectedToppings, setSelectedToppings] = useState<string[]>([])
   const [isFavorite, setIsFavorite] = useState(false)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.from('products').select('*').eq('id', id).single().then(({ data }) => {
+      setProduct(data as Product)
+      setLoading(false)
+    })
+  }, [id])
+
+  if (loading) {
+    return (
+      <div className="min-h-[100dvh] phone-screen flex flex-col items-center justify-center bg-gray-50 px-5 text-center">
+        <h1 className="text-lg font-bold text-gray-400 mb-2">Loading...</h1>
+      </div>
+    )
+  }
 
   if (!product) {
     return (
@@ -50,25 +68,25 @@ export default function ProductDetailPage({
   }
 
   // Calculate dynamic price based on selected toppings
-  const activeToppingsPrice = TOPPINGS_MAP[product.category]?.reduce((sum, t) => {
-    return selectedToppings.includes(t.name) ? sum + t.price : sum
-  }, 0) || 0
+  const activeToppingsPrice = Array.isArray(product.variants) ? product.variants.reduce((sum, t) => {
+    return selectedToppings.includes(t.name) ? sum + (Number(t.price) || 0) : sum
+  }, 0) : 0
 
   const itemTotalPrice = (product.price + activeToppingsPrice) * quantity
 
   function handleAddToCart() {
     if (!product) return
 
-    const activeToppings = TOPPINGS_MAP[product.category]?.filter((t) =>
+    const activeToppings = Array.isArray(product.variants) ? product.variants.filter((t) =>
       selectedToppings.includes(t.name)
-    ) || []
+    ) : []
 
     const toppingsSuffix = activeToppings.length > 0
       ? ` (+ ${activeToppings.map(t => t.name).join(', ')})`
       : ''
 
     const finalName = `${product.name}${toppingsSuffix}`
-    const finalPrice = product.price + activeToppings.reduce((sum, t) => sum + t.price, 0)
+    const finalPrice = product.price + activeToppings.reduce((sum, t) => sum + (Number(t.price) || 0), 0)
     const cartItemId = `${product.id}-${selectedToppings.join('-')}`
 
     addItem({
@@ -76,8 +94,10 @@ export default function ProductDetailPage({
       name: finalName,
       price: finalPrice,
       description: product.description,
-      photo_url: product.photo,
+      photo_url: product.photo_url,
       is_available: true,
+      category: product.category,
+      variants: []
     })
 
     if (quantity > 1) {
@@ -105,10 +125,10 @@ export default function ProductDetailPage({
       <div className="flex-1 overflow-y-auto px-5 py-4 pb-28">
         {/* Product Image */}
         <div className="relative w-full aspect-square max-h-[300px] rounded-3xl overflow-hidden bg-gray-50 mb-5 shadow-inner flex items-center justify-center text-8xl">
-          {product.photo ? (
+          {product.photo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={product.photo}
+              src={product.photo_url}
               alt={product.name}
               className="w-full h-full object-cover"
               onError={(e) => {
@@ -159,16 +179,16 @@ export default function ProductDetailPage({
         </p>
 
         {/* Optional Toppings */}
-        {TOPPINGS_MAP[product.category] && (
+        {Array.isArray(product.variants) && product.variants.length > 0 && (
           <div>
             <div className="flex justify-between items-center mb-3">
-              <h3 className="text-sm font-extrabold text-gray-900">Extra Toppings</h3>
+              <h3 className="text-sm font-extrabold text-gray-900">Variants / Add-ons</h3>
               <span className="bg-gray-100 text-gray-400 text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
                 Optional
               </span>
             </div>
             <div className="space-y-2.5">
-              {TOPPINGS_MAP[product.category].map((topping) => {
+              {product.variants.map((topping) => {
                 const isSelected = selectedToppings.includes(topping.name)
                 return (
                   <label
@@ -194,7 +214,7 @@ export default function ProductDetailPage({
                       />
                       <span className="text-xs font-bold text-gray-700">{topping.name}</span>
                     </div>
-                    <span className="text-xs font-extrabold text-gray-400">+₹{topping.price}</span>
+                    <span className="text-xs font-extrabold text-gray-400">{Number(topping.price) > 0 ? `+₹${topping.price}` : 'Free'}</span>
                   </label>
                 )
               })}
